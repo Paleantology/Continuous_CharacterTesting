@@ -20,12 +20,6 @@ moves.append(mvSPR(phylogeny, weight=n_branches/10.0))
 moves.append(mvBranchLengthScale(phylogeny, weight=n_branches))
 tree_length := phylogeny.treeLength()
 
-sigma2 ~ dnLoguniform(min=0.001, max=100)
-moves.append( mvScale(sigma2, weight=1.0) )
-X ~ dnPhyloBrownianREML(phylogeny, branchRates=sigma2^0.5)
-
-X.clamp(c_chars)
-
 alpha_morpho ~ dnExponential( 1.0 )
 rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
 
@@ -60,9 +54,51 @@ for (i in 1:n_max_states) {
 }
 }
 
-mymodel = model(sigma2)
+sigma2_root ~ dnLoguniform(1e-3, 1)
+moves.append( mvScale(sigma2_root, weight=1.0) )
+
+expected_number_of_shifts <- 2
+rate_shift_probability    <- expected_number_of_shifts / n_branches
+
+sd = 0.578
+rate_shift_distribution = dnLognormal(-sd^2/2, sd)
+
+for(i in n_branches:1) {
+    i
+    # draw the rate multiplier from a mixture distribution
+    branch_rate_multiplier[i] ~ dnReversibleJumpMixture(1, rate_shift_distribution, Probability(1 - rate_shift_probability) )
+
+    # compute the rate for the branch
+    if ( phylogeny.isRoot( phylogeny.parent(i) ) ) {
+       branch_rates[i] := sigma2_root * branch_rate_multiplier[i]
+    } else {
+       branch_rates[i] := branch_rates[phylogeny.parent(i)] * branch_rate_multiplier[i]
+    }
+    # keep track of whether the branch has a rate shift
+    branch_rate_shift[i] := ifelse( branch_rate_multiplier[i] == 1, 0, 1 )
+    branch_rate_shift[i]
+    # use reversible-jump to move between models with and without
+    # shifts on the branch
+    moves.append( mvRJSwitch(branch_rate_multiplier[i], weight=1) )
+
+    # include proposals on the rate mutliplier (when it is not 1)
+    moves.append( mvScale(branch_rate_multiplier[i], weight=1) )
+
+}
+
+num_rate_changes := sum( branch_rate_shift )
+
+X ~ dnPhyloBrownianREML(phylogeny, branchRates=branch_rates^0.5)
+X
+X.clamp(c_chars)
+
+
+
+mymodel = model(phylogeny)
 monitors.append( mnModel(filename="output/simple_BM.log", printgen=10) )
-monitors.append( mnScreen(printgen=1000, sigma2) )
+monitors.append( mnScreen(printgen=1000)) #, sigma2) )
 monitors.append(mnFile(filename="output/parted.trees", printgen=10, phylogeny))
 monitors.append(mnScreen(printgen=100))
 mymcmc = mcmc(mymodel, monitors, moves)
+mymcmc.run(generations=500000)
+q()
