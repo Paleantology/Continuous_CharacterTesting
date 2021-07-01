@@ -1,0 +1,68 @@
+c_chars <- readContinuousCharacterData("data/Continuous.nex")
+d_chars <- readDiscreteCharacterData("Data/Kammerer2019.nex")
+
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+c_chars.addMissingTaxa(d_chars.taxa())
+d_chars.addMissingTaxa(c_chars.taxa())
+
+taxa <- d_chars.taxa()
+n_tips <- taxa.size()
+n_branches <- 2 * n_tips - 2
+
+br_len_lambda ~ dnExp(0.2)
+moves.append(mvScale(br_len_lambda, weight=2))
+
+phylogeny ~ dnUniformTopologyBranchLength(taxa, branchLengthDistribution=dnExponential(br_len_lambda))
+moves.append(mvNNI(phylogeny, weight=n_branches/2.0))
+moves.append(mvSPR(phylogeny, weight=n_branches/10.0))
+moves.append(mvBranchLengthScale(phylogeny, weight=n_branches))
+tree_length := phylogeny.treeLength()
+
+sigma2 ~ dnLoguniform(min=0.001, max=100)
+moves.append( mvScale(sigma2, weight=1.0) )
+X ~ dnPhyloBrownianREML(phylogeny, branchRates=sigma2^0.5)
+
+X.clamp(c_chars)
+
+alpha_morpho ~ dnExponential( 1.0 )
+rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
+
+#Moves on the parameters to the Gamma distribution.
+moves.append(mvScale(alpha_morpho, lambda=0.01, weight=5.0))
+moves.append(mvScale(alpha_morpho, lambda=0.1,  weight=3.0))
+moves.append(mvScale(alpha_morpho, lambda=1,    weight=1.0))
+
+
+n_max_states <- 7
+idx = 1
+i = 1
+morpho_f_bystate <- d_chars.setNumStatesVector()
+for (i in 1:n_max_states) {
+    nc = morpho_f_bystate[i].nchar()
+    # for non-empty character blocks
+    if (nc > 0) {
+        # make i-by-i rate matrix
+        q[idx] <- fnJC(i)
+# create model of evolution for the character block
+        m_morph[idx] ~ dnPhyloCTMC( tree=phylogeny,
+                                    Q=q[idx],
+                                    nSites=nc,
+                                    siteRates=rates_morpho,
+                                    type="Standard")
+
+        # attach the data
+	    m_morph[idx].clamp(morpho_f_bystate[i])
+
+        # increment counter
+        idx = idx + 1
+}
+}
+
+mymodel = model(sigma2)
+monitors.append( mnModel(filename="output/simple_BM.log", printgen=10) )
+monitors.append( mnScreen(printgen=1000, sigma2) )
+monitors.append(mnFile(filename="output/parted.trees", printgen=10, phylogeny))
+monitors.append(mnScreen(printgen=100))
+mymcmc = mcmc(mymodel, monitors, moves)
