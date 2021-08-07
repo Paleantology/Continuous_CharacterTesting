@@ -2,7 +2,7 @@
 
 #c_chars <- readContinuousCharacterData("data/Continuous.nex")
 d_chars <- readDiscreteCharacterData("data/Kammerer2019.nex")
-taxa <- readTaxonData("data/Ages.csv")
+taxa <- readTaxonData("data/Therapsid_Ages.csv")
 moves    = VectorMoves()
 monitors = VectorMonitors()
 
@@ -12,25 +12,18 @@ d_chars.addMissingTaxa( taxa )
 
 n_tips <- taxa.size()
 num_branches <- 2 * n_tips - 3
+source("scripts/foss.Rev")
+n_branch <- fbd_tree.ntips()
+n_branch
+# The rate along each branch is drawn from an exponential prior
 
-topology ~ dnUniformTopology(taxa)
+     clock_morpho ~ dnExponential(1.0)
 
-moves.append( mvNNI(topology, weight=30) )
-moves.append( mvSPR(topology, weight=20) )
+     moves.append( mvScale(clock_morpho, lambda=0.01, weight=4.0) )
+     moves.append( mvScale(clock_morpho, lambda=0.1,  weight=4.0) )
+     moves.append( mvScale(clock_morpho, lambda=1,    weight=4.0) )
 
-
-for (i in 1:num_branches) {
-   br_lens[i] ~ dnExponential(10.0)
-
-   moves.append( mvScale(br_lens[i], lambda=4.0, weight=1, tune=false) )
-   moves.append( mvScale(br_lens[i], lambda=0.2, weight=1, tune=false) )
-   moves.append( mvScale(br_lens[i], lambda=.02, weight=1, tune=false) )
-}
-
-# tree length
-TL := sum(br_lens)
-
-fbd_tree := treeAssembly(topology, br_lens)
+clock_morpho
 
 
 # Moves on the parameters to the Gamma distribution.
@@ -38,25 +31,43 @@ fbd_tree := treeAssembly(topology, br_lens)
     rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
     moves.append(mvScale(alpha_morpho, lambda=1, weight=2.0))
 
+#    beta_scale ~ dnLognormal( 0.0, sd=2*0.587405 )
+#    moves.append( mvScale(beta_scale, lambda=1, weight=5.0 ) )
 
-    beta_scale ~ dnLognormal( 0.0, sd=2*0.587405 )
-    moves.append( mvScale(beta_scale, lambda=1, weight=5.0 ) )
+#      cats := fnDiscretizeBeta(beta_scale, beta_scale, 7)
+#      for (x in 1:cats.size())
+#      {
+#        q[x] := fnF81(simplex(cats))
+#        }
+#        mat_prior <- rep(1,7)
+#        matrix_probs ~ dnDirichlet(mat_prior)
+#        moves.append( mvBetaSimplex(matrix_probs, weight=3.0) )
+#        moves.append( mvDirichletSimplex(matrix_probs, weight=1.5) )
+     n_max_states <- 3
+     idx = 1
+     morpho_f_bystate <- d_chars.setNumStatesVector()
+     for (i in 1:n_max_states) {
+         nc = morpho_f_bystate[i].nchar()
+         # for non-empty character blocks
+         if (nc > 0) {
+             # make i-by-i rate matrix
+             q[idx] <- fnJC(i)
+     # create model of evolution for the character block
+             m_morph[idx] ~ dnPhyloCTMC( tree=fbd_tree,
+                                         Q=q[idx],
+                                         nSites=nc,
+                                         siteRates=rates_morpho,
+                                         branchRates=clock_morpho,
+                                         type="Standard")
 
-      cats := fnDiscretizeBeta(beta_scale, beta_scale, 7)
-      for (x in 1:cats.size())
-      {
-        q[x] := fnF81(simplex(cats))
-        }
-        mat_prior <- rep(1,7)
-        matrix_probs ~ dnDirichlet(mat_prior)
-        moves.append( mvBetaSimplex(matrix_probs, weight=3.0) )
-        moves.append( mvDirichletSimplex(matrix_probs, weight=1.5) )
-        m_morph ~ dnPhyloCTMC( tree=fbd_tree,
-                                    Q=q,
-                                    siteRates=rates_morpho,
-                                    siteMatrices=matrix_probs,
-                                    type="Standard")
-      m_morph.clamp(d_chars)
+             # attach the data
+     	    m_morph[idx].clamp(morpho_f_bystate[i])
+
+             # increment counter
+             idx = idx + 1
+     idx
+     }
+     }
 
 #sigma2_root ~ dnLoguniform(1e-3, 1)
 #oves.append( mvScale(sigma2_root, weight=1.0) )
