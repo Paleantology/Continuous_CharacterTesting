@@ -3,6 +3,8 @@
 #c_chars <- readContinuousCharacterData("data/Continuous.nex")
 d_chars <- readDiscreteCharacterData("data/Kammerer2019.nex")
 taxa <- readTaxonData("data/Therapsid_Ages.csv")
+intervals = readDataDelimitedFile(file="data/Therapsid_Ages.csv", header=true)
+
 moves    = VectorMoves()
 monitors = VectorMonitors()
 
@@ -11,10 +13,8 @@ d_chars.addMissingTaxa( taxa )
 
 
 n_tips <- taxa.size()
-num_branches <- 2 * n_tips - 3
+n_branches <- 2 * n_tips - 3
 source("scripts/foss.Rev")
-n_branch <- fbd_tree.ntips()
-n_branch
 # The rate along each branch is drawn from an exponential prior
 
      clock_morpho ~ dnExponential(1.0)
@@ -61,7 +61,7 @@ clock_morpho
                                          type="Standard")
 
              # attach the data
-     	    m_morph[idx].clamp(morpho_f_bystate[i])
+#     	    m_morph[idx].clamp(morpho_f_bystate[i])
 
              # increment counter
              idx = idx + 1

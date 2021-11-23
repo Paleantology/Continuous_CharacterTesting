@@ -1,0 +1,67 @@
+# BiSSE Model
+
+# priors on div rates
+for (i in 1:2) {  # looping through the number of states
+
+    # set exponential prior and scale move for speciation
+    speciation[i] ~ dnExponential(1)
+    moves.append( mvScale(speciation[i],lambda=0.20,tune=true,weight=3.0) )
+    # set a starting value for the MCMC chain to use (this prevents it from starting out in the weeds)
+    # we use a value from a common calculation for a net speciation rate, based on number of taxa and tree age:
+    speciation[i].setValue( ln(total_taxa/2.0) / 49.0 )
+
+    # Same for extinction
+    extinction[i] ~ dnExponential(1)
+    moves.append( mvScale(extinction[i],lambda=0.20,tune=true,weight=3.0) )
+    # but here our starting value is just the starting value for speciation/10
+    extinction[i].setValue( speciation[i]/10.0 )
+
+    # we can let Rev keep track of net diversification by making it a deterministic node:
+    diversification[i] := speciation[i] - extinction[i]
+    # we don't set a move, so the MCMC won't try to optimise/estimate this, and just keeps calculating it and saving the result
+
+    # to get a sensible prior for transition rates, we calculate the rate if we expect 10 transition events over the whole tree (tree length is the sum of all branch lenghts)
+    rate_pr := 10
+
+    # We set an exponential prior for the transition rates with the rate calculated above, and set a move
+    transition_rates[i] ~ dnExponential(rate_pr)
+    moves.append( mvScale(transition_rates[i], lambda=0.20, tune=true, weight=3.0) )
+
+}
+
+# we make a rate matrix from the transition rates we calculated in the loop above
+rate_matrix := fnFreeK( transition_rates, rescaled=false)
+
+# we set an even Dirichlet prior on the trait state at the root (meaning we don't imply any state to be more likely), and add an appropriate move
+root_state_freq ~ dnDirichlet( rep(1, 2) )
+moves.append( mvDirichletSimplex(root_state_freq, tune=true, weight=2) )
+
+# we calculate the sampling fraction from the represented and known taxa as set in the runfile
+sampling <- n_taxa / total_taxa
+
+
+root_age ~ dnUniform(300, 400)
+moves.append( mvScale(root_age, lambda=1, tune=true, weight=5.0) )
+
+# we supply the parameters we've defined above to the Character Dependent Birth Death Process function
+timetree ~ dnCDBDP( rootAge           = root_age,
+               lambda            = speciation,
+               mu                = extinction,
+               Q                 = rate_matrix,
+               pi                = root_state_freq,
+               rho               = sampling )
+
+# clamp the tree and character data to the sse node
+#sse.clamp( tree )
+psi ~ dnUniformTimeTree(rootAge = root_age, taxa = taxa)
+timetree.setValue(psi)
+timetree.clamp( contData )
+
+# add tree moves
+moves.append( mvNarrow(timetree, weight=n_taxa) )
+moves.append( mvFNPR(timetree, weight=n_taxa/4) )
+moves.append( mvNodeTimeSlideUniform(timetree, weight=n_taxa) )
+moves.append( mvSubtreeScale(timetree, weight=n_taxa/5.0) )
+
+# wrap this all up in a model object, which we then make use of in the runfile again
+# mymodel = model(sse)

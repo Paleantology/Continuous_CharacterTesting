@@ -1,0 +1,24 @@
+# Substitution model GTR+Gamma
+
+# set Dirichlet priors for 4 stationary frequencies and 6 exchangeability rates 
+sf_hp <- v(1,1,1,1)
+sf ~ dnDirichlet(sf_hp)
+
+er_hp <- v(1,1,1,1,1,1)
+er ~ dnDirichlet(er_hp)
+
+# add beta simplex moves to frequencies and rates
+moves.append( mvBetaSimplex(er, alpha=10.0, weight=3.0) )
+moves.append( mvBetaSimplex(sf, alpha=10.0, weight=2.0) )
+
+# combine frequencies and rates to sustitution matrix Q
+Q_cytb := fnGTR(er,sf)
+
+# make uniform prior for alpha parameter of gamma and add move
+alpha_cytb ~ dnUniform(0.0,1E6)
+alpha_cytb.setValue( 1.0 )
+
+moves.append( mvScale(alpha_cytb, lambda=0.5, tune=true, weight=2.0) )
+
+# make discretized Gamma from alpha shape and rate parameters
+rates_cytb := fnDiscretizeGamma(alpha_cytb, alpha_cytb, 4)

@@ -1,0 +1,68 @@
+# RevBayes v1.1.0
+#
+# master script to run the MCMC and summarize trees
+
+####################
+# read in the data #
+contData <- readContinuousCharacterData("data/Continuous.nex")
+discData <- readDiscreteCharacterData("data/Kammerer2019.nex")
+taxa <- readTaxonData("data/Therapsid_Ages.tsv")
+taxa
+discData.addMissingTaxa( taxa )
+contData.addMissingTaxa( taxa )
+
+
+# global variables
+numTips = contData.ntaxa()
+n_tips = contData.ntaxa()
+n_taxa <- taxa.size()
+
+numNodes = numTips * 2 - 1
+names = contData.names()
+n_branches <- 2 * n_tips - 2
+# vector for the moves and monitors
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+###############
+# load models #
+#source("scripts/model_foss.Rev")
+source("scripts/nonFBD/model_UTopo.Rev")
+source("scripts/nonFBD/model_StCT.Rev")
+#source("scripts/nonFBD/model_UCLN.Rev")
+#source("scripts/nonFBD/model_relaxed_BM.Rev") # continuous traits
+source("scripts/nonFBD/model_UniBM.Rev")
+#source("scripts/nonFBD/model_Morph.Rev")
+
+mymodel = model(phylogeny)
+
+############
+# run MCMC #
+
+# some minitors
+monitors.append( mnScreen(printgen=100) )
+monitors.append( mnModel(filename="output_nonclock_cont/foss_uBM.log", printgen=10) )
+monitors.append( mnFile(filename="output_nonclock_cont/foss_uBM.trees", printgen=10,phylogeny) )
+
+# initialize the MCMC object
+mymcmc = mcmc(mymodel, moves, monitors, nruns=2, combine="mixed")
+
+# run the MCMC
+mymcmc.run(generations=100000)
+
+# check the performance of the moves
+mymcmc.operatorSummary()
+
+#########################################
+# read in the tree trace and summarize  #
+trace = readTreeTrace("output_nonclock_cont/cont_uBM.trees", treetype="clock", nruns=2)
+
+# maximum a posteriori (MAP) tree
+mapTree(trace, file="output_nonclock_cont/cont_uBM.map.tre")
+
+# majority-rule consensus tree
+consensusTree(trace, file="output_nonclock_cont/cont_uBM.maj.tre")
+
+#################
+# quit RevBayes #
+q()

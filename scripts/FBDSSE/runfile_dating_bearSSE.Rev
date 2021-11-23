@@ -1,0 +1,43 @@
+# RevBayes v1.1.0
+#
+# master script to run the MCMC and summarize trees
+
+####################
+# read in the data #
+contData <- readDiscreteCharacterData("data/Kammerer2019.nex")
+taxa <- readTaxonData("data/Therapsid_Ages.tsv")
+taxa
+contData.addMissingTaxa( taxa )
+
+
+# global variables
+numTips = contData.ntaxa()
+n_tips = contData.ntaxa()
+n_taxa <- taxa.size()
+
+total_taxa <- taxa.size()
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+#source("src/subst_GTRGamma.Rev")
+
+source("scripts/FBDSSE/bisse_joint2.Rev")
+
+source("clock_relaxedMolec.Rev")
+
+
+# combine to model object
+mymodel = model(timetree)
+
+# set monitors
+monitors.append( mnModel(filename="output/bearSSE.log", printgen=10) )
+monitors.append( mnFile(filename="output/bearSSE.trees", printgen=10, timetree) )
+monitors.append(mnScreen(printgen=10, root_age, diversification, branch_rates))
+
+# set and run mcmc
+mymcmc = mcmc(mymodel, monitors, moves, nruns=1, combine="mixed")
+mymcmc.run(generations=2000, tuningInterval=20)
+
+# combine resulting posterior trees
+trace = readTreeTrace("output/bearSSE.trees")
+mccTree(trace, file="output/bearSSE.mcc.tre" )

@@ -1,0 +1,18 @@
+# Relaxed Molecular Clock Model
+
+# set prior and move for mean rates
+branch_rates_mean ~ dnExponential(10.0)
+moves.append( mvScale(branch_rates_mean, lambda=0.5, tune=true, weight=3.0) )
+
+# assign priors and moves for individual rate (based on mean) to each branch in for loop
+n_branches <- 2 * n_taxa - 2
+for(i in 1:n_branches){
+    branch_rates[i] ~ dnExp(1/branch_rates_mean)
+    moves.append( mvScale(branch_rates[i], lambda=0.5, tune=true, weight=1.0) )
+}
+
+# additional move to change all branch rates at once
+moves.append( mvVectorScale(branch_rates, lambda=0.5, tune=true, weight=4.0) )
+
+# additional move to change node ages and branch rates at the same time
+moves.append( mvRateAgeBetaShift(tree=timetree, rates=branch_rates, tune=true, weight=n_taxa) )

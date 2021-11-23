@@ -1,0 +1,107 @@
+c_chars <- readContinuousCharacterData("data/Continuous.nex")
+character_data <- readDiscreteCharacterData("data/Kammerer2019.nex")
+taxa <- readTaxonData("data/Therapsid_Ages.csv")
+
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+character_data.addMissingTaxa( taxa )
+c_chars.addMissingTaxa( taxa )
+
+
+#Define which characters are ordered and which are not
+m_chars <- character_data
+m_chars.excludeCharacter(v(58, 61, 79, 140, 150, 151, 166)) #v() is for vector. THis will be a list of all your ordered characters. I just put a dummy list in for testing
+o_chars <- character_data
+o_chars.excludeCharacter(v(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 59, 60, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 142, 143, 144, 145, 146, 147, 148, 149, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 167, 168, 169, 170)) #This will be the list of all your multistate characters
+
+taxa <- c_chars.taxa()
+n_tips <- taxa.size()
+n_branches <- 2 * n_tips - 2
+
+
+# Set up Gamma-distributed rate variation.
+alpha_morpho ~ dnUniform( 0.0, 1E6 )
+rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
+
+# Moves on the parameters to the Gamma distribution.
+moves.append( mvScale(alpha_morpho, lambda=1, weight=2.0) )
+
+
+br_len_lambda ~ dnExp(0.2)
+moves.append(mvScale(br_len_lambda, weight=2))
+phylogeny ~ dnUniformTopologyBranchLength(taxa, branchLengthDistribution=dnExponential(br_len_lambda))
+moves.append(mvNNI(phylogeny, weight=n_branches/2.0))
+moves.append(mvSPR(phylogeny, weight=n_branches/10.0))
+moves.append(mvBranchLengthScale(phylogeny, weight=n_branches))
+tree_length := phylogeny.treeLength()
+source("scripts/ContChars.Rev")
+
+
+
+n_max_states <- 7 #set the largest character state in your multistate matrix here
+idx = 1
+morpho_bystate[1] <- m_chars
+for (i in 2:n_max_states) {
+    morpho_bystate[i] <- m_chars                                # make local tmp copy of data
+    morpho_bystate[i].setNumStatesPartition(i)                 # only keep character blocks with state space equal to size i
+    nc = morpho_bystate[i].nchar()                             # get number of characters per character size with i-sized states
+
+    if (nc > 0) {                                              # for non-empty character blocks
+        q[idx] <- fnJC(i)                                      # make i-by-i rate matrix
+        m_morph[idx] ~ dnPhyloCTMC( tree=phylogeny,
+                                    Q=q[idx],
+                                    nSites=nc,
+                                    branchRates = clock_morpho,
+                                    siteRates=rates_morpho,
+                                    type="Standard")           # create model of evolution for the character block
+
+        m_morph[idx].clamp(morpho_bystate[i])                  # attach the data
+        m_morph[idx]
+
+        idx = idx + 1                                          # increment counter
+    }
+}
+
+n_max_states <- 7 #set the largest character state in your ordered matrix here
+idx = 1
+morpho_bystate[1] <- o_chars
+for (i in 2:n_max_states) {
+    morpho_bystate[i] <- o_chars                                # make local tmp copy of data
+    morpho_bystate[i].setNumStatesPartition(i)                 # only keep character blocks with state space equal to size i
+    nc = morpho_bystate[i].nchar()                             # get number of characters per character size with i-sized states
+    if (nc > 0) {                                              # for non-empty character blocks
+        q[idx] <- fnOrderedRateMatrix(i)                                      # make i-by-i rate matrix
+        m_morph[idx] ~ dnPhyloCTMC( tree=phylogeny,
+                                    Q=q[idx],
+                                    nSites=nc,
+                                    branchRates = clock_morpho,
+                                    siteRates=rates_morpho,
+                                    type="Standard")            # create model of evolution for the character block
+
+        m_morph[idx].clamp(morpho_bystate[i])                  # attach the data
+        m_morph[idx]
+        idx = idx + 1                                          # increment counter
+    }
+}
+
+
+logSigma ~ dnNormal(0,1) #place a prior on BM sigma parameter.
+sigma := 10^logSigma
+moves[++mvi] = mvSlide(logSigma, delta=1.0, tune=true, weight=2.0)
+
+#specify that we are going calculate BM likelihood using the REML PIC algorithm (see Felsenstein 1973)
+traits ~ dnPhyloBrownianREML(psi, branchRates=1.0, siteRates=sigma, nSites=contData.nchar())
+
+traits.clamp(contData) #match traits to tips
+bmv = model(sigma) #link sigma param w/ BM model
+
+
+mymodel = model(phylogeny)
+monitors.append( mnModel(filename="output/simple_BM.log", printgen=10) )
+monitors.append( mnScreen(printgen=1000)) #, sigma2) )
+monitors.append(mnFile(filename="output/parted.trees", printgen=10, phylogeny))
+monitors.append(mnScreen(printgen=100))
+mymcmc = mcmc(mymodel, monitors, moves)
+mymcmc.run(generations=500000)
+q()

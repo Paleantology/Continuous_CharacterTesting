@@ -1,7 +1,7 @@
 ## FBD model
-# Diversification Rates based on Echinodermata
-speciation_rate ~ dnExponential(5);
-#speciation_rate.setValue(.1)
+# Diversification Rates based on Therapsids
+speciation_rate ~ dnExponential(5.5);
+speciation_rate.setValue(1)
 # NOTE: If it gets stuck in this script, then set origination & extinction to 1.0
 moves.append(mvScale(speciation_rate, lambda=0.01, weight=5));
 moves.append(mvScale(speciation_rate, lambda=0.10, weight=3));
@@ -14,7 +14,7 @@ moves.append(mvScale(speciation_rate, lambda=1.00, weight=1));
 # So, here we'll make turnover (ext/orig) an independent variable and use it        #
 #               to scale extinction relative to origination                         #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-turnover ~ dnUnif(-1, 1);
+turnover ~ dnUnif(0.90, 1.05); # was -1,1
 moves.append(mvSlide(turnover, delta=0.01, weight=5));
 moves.append(mvSlide(turnover, delta=0.10, weight=3));
 moves.append(mvSlide(turnover, delta=1.00, weight=1));
@@ -29,24 +29,24 @@ diversification := speciation_rate - extinction_rate
 #moves.append(mvScale(extinction_rate, lambda=1.00, weight=1));
 #turnover := extinction_rate/speciation_rate;
 
-# Fossil Sampling Rates based on collection occupied by Echinodermata
-psi ~ dnExponential(10);
+# Fossil Sampling Rates based on collection occupied by Synapsids & Archosaurs
+psi ~ dnExponential(1/0.072); # based on average per-ma expectations given FreqRat
 completeness := psi/(extinction_rate+psi);
 moves.append(mvScale(psi, lambda=0.01, weight=5));
 moves.append(mvScale(psi, lambda=0.10, weight=3));
 moves.append(mvScale(psi, lambda=1.00, weight=1));
 
 # Proportional Taxon Sampling of Youngest Time Slice
-rho <- .231;	# 'extant' sampling.
+rho <- .231;	# 'extant' sampling based on distribution of finds among synapsids & archosaurs contemporaneous with latest therapsids
 
 # Establish Basal Divergence Time
-origin_time ~ dnUnif(290, 350);
+origin_time ~ dnUnif(305, 600); # reset so that the latest possible FA is 0.
 origin_time
+
 moves.append(mvSlide(origin_time, delta=0.01, weight=5));
 moves.append(mvSlide(origin_time, delta=0.10, weight=3));
 moves.append(mvSlide(origin_time, delta=1.00, weight=1));
-fbd_dist = dnFossilizedBirthDeathProcess(originAge=origin_time, lambda=speciation_rate, mu=extinction_rate, psi=psi, rho=rho, taxa=taxa, condition = "sampling")
-
+fbd_dist = dnFBDRP(originAge=origin_time, lambda=speciation_rate, mu=extinction_rate, psi=psi, rho=rho, taxa=taxa)
 ############################################################################
 #                               Set up tree                                #
 ############################################################################
@@ -56,19 +56,23 @@ lystro = clade("Lystrosaurus_hedini", "Lystrosaurus_maccaigi", "Lystrosaurus_cur
 gelao = clade("Galeops_whaitsi", "Galepus_jouberti")
 constraints = v(outgroup, lystro, gelao);
 fbd_tree ~ dnConstrainedTopology(fbd_dist,constraints=constraints);
-fbd_tree
 
-moves.append(mvFNPR(fbd_tree , weight=num_branches/2));                              # time-tree pruning & grafting
-moves.append(mvNNI(fbd_tree , weight=num_branches/2));                               # nearest-neighbor interchanges
+moves.append(mvFNPR(fbd_tree , weight=n_branches/2));                              # time-tree pruning & grafting
+moves.append(mvNNI(fbd_tree , weight=n_branches/2));                               # nearest-neighbor interchanges
 moves.append(mvCollapseExpandFossilBranch(fbd_tree ,origin_time,weight=n_tips/4)); # consider ancestor-descendant rather than sister species
-moves.append(mvNodeTimeSlideUniform(fbd_tree , weight=num_branches/2));              # adjust divergence times
+moves.append(mvNodeTimeSlideUniform(fbd_tree , weight=n_branches/2));              # adjust divergence times
 moves.append(mvRootTimeSlideUniform(fbd_tree , origin_time, weight=5));            # adjust basal divergence time.
 
 num_samp_anc := fbd_tree.numSampledAncestors();
 num_samp_anc
+
 # Setup the fossil tip sampling #
 # Use a for loop to create a uniform distribution on the occurence time for each fossil #
 # The boundaries of the uniform distribution are specified in the tsv file #
+### Use stratigraphic range data to explicitly sample the fossil occurence times ###
+# Use a for loop to create a uniform distribution on the occurence time for each fossil #
+# The boundaries of the uniform distribution are specified in the tsv file #
+
 fossils = fbd_tree.getFossils()
 for(i in 1:fossils.size())
 {
@@ -76,10 +80,10 @@ for(i in 1:fossils.size())
 
     a_i = fossils[i].getMinAge()
     b_i = fossils[i].getMaxAge()
-
+    b_i
     F[i] ~ dnUniform(t[i] - b_i, t[i] - a_i)
     F[i].clamp( 0 )
 }
 
- # Add a move to sample the fossil times #
+# Add a move to sample the fossil times #
 moves.append( mvFossilTimeSlideUniform(fbd_tree, origin_time, weight=5.0) )

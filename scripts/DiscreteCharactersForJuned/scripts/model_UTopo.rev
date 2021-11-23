@@ -1,0 +1,24 @@
+# RevBayes v1.1.0
+#
+# nonclock tree, uniform topology and exp branch lengths
+
+# topology
+# outgroup = clade("t1","t2")
+topology ~ dnUniformTopology(taxa)
+
+moves.append( mvNNI(topology, weight=30) )
+moves.append( mvSPR(topology, weight=20) )
+
+# branch lengths
+n_branches <- 2 * n_taxa - 3
+for (i in 1:n_branches) {
+   br_lens[i] ~ dnExponential(10.0)
+
+   moves.append( mvScale(br_lens[i], lambda=9.0, weight=1, tune=false) )
+   moves.append( mvScale(br_lens[i], lambda=2.0, weight=1, tune=false) )
+   moves.append( mvScale(br_lens[i], lambda=0.2, weight=1, tune=false) )
+}
+phylogeny := treeAssembly(topology, br_lens)
+# branchRates in dnPhyloCTMC (nonclock)
+clock_disc <- 1
+clock_cont <- 1

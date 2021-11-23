@@ -1,0 +1,9 @@
+# RevBayes v1.1.0
+#
+# univariate Brownian motion (uniBM) model for the continous traits
+
+# assume the traits are uncorrelated
+# specify the BM process and clamp with observed data #
+nchar <- contData.nchar()
+phyContinous ~ dnPhyloBrownianREML(tree=phylogeny, branchRates=clock_cont, nSites=nchar)
+phyContinous.clamp(contData)
