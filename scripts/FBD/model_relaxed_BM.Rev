@@ -1,18 +1,20 @@
-#clock_cont ~ dnLoguniform(1e-3, 1)
-#moves.append( mvScale(clock_cont, weight=1.0) )
+clock_cont ~ dnLoguniform(1e-3, 1)
+moves.append( mvScale(clock_cont, weight=1.0) )
 
 expected_number_of_shifts <- 2
 rate_shift_probability    <- expected_number_of_shifts / n_branches
-
+rate_shift_probability
 sd = 0.578
 rate_shift_distribution = dnLognormal(-sd^2/2, sd)
-
-for(x in n_branches:1) {
+rate_shift_distribution
+for(x in 213:1) {
     # draw the rate multiplier from a mixture distribution
-    branch_rate_multiplier[x] ~ dnReversibleJumpMixture(1, rate_shift_distribution, Probability(1 - rate_shift_probability) )
+    branch_rate_multiplier[x] = dnReversibleJumpMixture(1, rate_shift_distribution, Probability(1 - rate_shift_probability) )
+    branch_rate_multiplier[x]
     # compute the rate for the branch
     if ( timetree.isRoot( timetree.parent(x) ) ) {
        branch_rates[x] := clock_cont * branch_rate_multiplier[x]
+       branch_rates[x]
     } else {
        branch_rates[x] := branch_rates[timetree.parent(x)] * branch_rate_multiplier[x]
     }
