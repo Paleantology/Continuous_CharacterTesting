@@ -12,12 +12,12 @@ clear_na_from_matrix <- function(data, replacement)  {
 #for (i in 1:size[1])	{
 #	for (j in 1:size[2]) if (is.na(data[i,j]))	data[i,j] <- replacement
 #	}
-for (i in 1:ncol(data))	{
-	if(sum(is.na(data[,i]))>0)	{
-		duds <- (1:nrow(data))[is.na(data[,i])]
-		data[duds,i] <- replacement
-		}
-	}
+for (i in 1:ncol(data))	data[is.na(data[,i]),i] <- replacement;
+#	if(sum(is.na(data[,i]))>0)	{
+#		duds <- (1:nrow(data))[is.na(data[,i])];
+#		data[duds,i] <- replacement;
+#		}
+#	}
 return(data)
 }
 
