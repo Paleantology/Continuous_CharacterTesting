@@ -281,7 +281,7 @@ if (use_strat_labels)	{
 	dummy <- vector(length=(lst-1));
 	for (i in 1:(lst-1))    dummy[i] <- mny-exy;
 	#add something
-	font_size <- min(2,thin_bin*xsize*strat_label_size);
+	font_size <- min(2,3*thin_bin*xsize*strat_label_size);
 #	print(c(thin_bin,xsize,strat_label_size));
 #	print(font_size);
 	text(mid[first_period:last_period],dummy[first_period:last_period],label=strat_names[first_period:last_period],cex=font_size);
@@ -1473,6 +1473,12 @@ if (label_pos=="mid" && is.numeric(axis_labels[1]))	{
 #	axis(axe,at=labels_ticks,tcl=-0.30,labels=axis_labels,lwd=0.0,lwd.ticks=0.0,las=orient,cex.axis=font_size);
 	axis(axe,at=labels_ticks[pass_one],tcl=-0.30,labels=axis_labels[pass_one],lwd=0.0,lwd.ticks=0.0,las=orient,cex.axis=font_size);
 	axis(axe,at=labels_ticks[pass_two],tcl=-0.30,labels=axis_labels[pass_two],lwd=0.0,lwd.ticks=0.0,las=orient,cex.axis=font_size);
+	} else if (label_pos=="mid")	{
+	nlabels <- length(axis_labels);
+	labels_ticks <- (1:nlabels)-(1-min_val)+0.5;
+#	axis(axe,at=labels_ticks,tcl=-0.30,labels=axis_labels,lwd=0.0,lwd.ticks=0.0,las=orient,cex.axis=font_size);
+	axis(axe,at=labels_ticks,tcl=0,labels=axis_labels,lwd=0.0,lwd.ticks=0.0,las=orient,cex.axis=font_size);
+#	axis(axe,at=labels_ticks[pass_two],tcl=-0.30,labels=axis_labels[pass_two],lwd=0.0,lwd.ticks=0.0,las=orient,cex.axis=font_size);
 	} else	{
 	labels_ticks <- seq(min_val,max_val,by=axis_span/(length(axis_labels)-1));
 	pass_one <- (1:length(axis_labels))[(1:length(axis_labels)) %% 2==1];
@@ -2514,9 +2520,9 @@ for (nd in nNodes:1)	{
 return(phylo_axis);
 }
 
+# modified 2021-09-15 for Crassatella fun.
 get_phylo_axis_from_newick_string_w_anagenesis <- function(newick_string,sampled_ancestors,anagenetic_ancestors=0,root_low=T)	{
-if (length(anagenetic_ancestors)==1)
-	anagenetic_ancestors <- rep(0,length(sampled_ancestors));
+if (length(anagenetic_ancestors)==1)	anagenetic_ancestors <- rep(0,length(sampled_ancestors));
 newick_string_new <- gsub(")","),",newick_string);
 newick_string_new <- gsub(",,","),",newick_string_new);
 otu_order_string <- simplify2array(strsplit(newick_string_new,split=",")[1])[,1]
@@ -2524,12 +2530,15 @@ otu_order_string <- gsub("\\(","",otu_order_string);
 otu_order_string <- gsub("\\)","",otu_order_string);
 otu_order_string <- otu_order_string[!otu_order_string %in% c("",";")];
 otu_order_string <- as.numeric(otu_order_string);
-otu_order <- match(1:max(otu_order_string),otu_order_string);
+otu_order_orig <- otu_order <- match(1:max(otu_order_string),otu_order_string);
 notu <- length(otu_order);
-
+nhtu <- (1:notu)[sampled_ancestors==1]	# hypothesized sampled ancestors
+names(nhtu) <- names(sampled_ancestors)[sampled_ancestors==1];
 cladogram <- read_newick_string(newick_string);
 mat_tree <- transform_vector_tree_to_matrix_tree(vector_tree=cladogram);
+venn_tree <- transform_vector_tree_to_venn_tree(vector_tree=cladogram);
 nNodes <- nrow(mat_tree);
+rownames(mat_tree) <- rownames(venn_tree) <- (notu+1):(notu+nNodes);
 if (root_low)	{
 	max_tax <- (1:notu)[match(max(otu_order),otu_order)];
 	end_node <- which(mat_tree==max_tax,arr.ind=T)[,1];
@@ -2540,7 +2549,193 @@ if (root_low)	{
 	otu_order <- otu_order-min(otu_order)
 	}
 
-observed_nodes <- rep(0,nNodes);
+observed_nodes <- rep(0,nNodes);	# tally sampled ancestors
+an <- 0;
+while (an < length(nhtu))	{
+	an <- an+1;
+	observed_nodes[max(which(mat_tree==nhtu[an],arr.ind=T)[,1])] <- nhtu[an];
+	}
+#anhtu <- (1:notu)[anagenetic_ancestors==1];	# anagenetic ancestors
+anas <- (1:notu)[anagenetic_ancestors==1];
+names(anas) <- names(anagenetic_ancestors)[anas];
+#anhtu <- match(anas,observed_nodes)	# nodes with anagenetic ancestors
+# look for strings of anagenetic taxa !!!
+obs_nodes <- (1:nNodes)[observed_nodes>0];
+an <- length(obs_nodes);
+
+an <- 0;
+while (an < length(anas))	{
+	an <- an+1;
+	acells <- which(mat_tree==anas[an],arr.ind = T);
+	f1 <- mat_tree[acells[1],mat_tree[acells[1],]!=anas[an]];
+	f1 <- f1[f1<=notu];	# reduce to just species
+#		if (length(f1)>0)	{
+	if (length(f1)==1)	{
+		otu_order[f1] <- otu_order[anas[an]];
+		} else	{
+		f1 <- mat_tree[acells[1],mat_tree[acells[1],]!=anas[an]];
+#			observed_nodes[f1[1]-notu] <- anas[an]; 
+		for (ff in 1:length(f1))	{
+			f2 <- mat_tree[f1[ff]-notu,mat_tree[f1[ff]-notu,]>0];
+			if (sum(sampled_ancestors[f2[f2<=notu]])>0)	{
+				next_anc <-f2[sampled_ancestors[f2]==1][1];
+				otu_order[next_anc] <- otu_order[anas[an]];
+				} else if (sum(f2<=notu)>0)	{
+        # if ancestral to node
+				if (root_low)	{
+					otu_order[anas[an]] <- min(otu_order[f2[f2<=notu]])+0.5;
+					} else	{
+					otu_order[anas[an]] <- min(otu_order[f2[f2<=notu]])-0.5;
+					}
+				}
+			} # end search of descendants
+		}
+	}
+min_ord <- min(otu_order);
+otu_order <- match(otu_order,sort(unique(otu_order)));
+otu_order <- otu_order-min(otu_order);
+names(otu_order) <- names(anagenetic_ancestors);
+
+# make sure that we didn't accidentally stack two different morphospecies lines on top of one another 
+orderings <- hist(otu_order,breaks=-1:max(otu_order),plot=F)$counts;
+stacked <- (1:length(orderings))[orderings>1]-1;
+st <- 0;
+while(st<length(stacked))	{
+	st <- st+1;
+	check_these <- (1:notu)[otu_order==stacked[st]];
+	names(otu_order)[check_these]
+	if (length(unique(vector_tree[check_these]))>1)	{
+		relv_htu <- sort(unique(vector_tree[check_these]));
+		relv_nodes <- relv_htu-notu;
+		key_tu <- c(relv_htu[2:length(relv_htu)],check_these);
+		if (sum(mat_tree[relv_nodes,] %in% key_tu)<length(key_tu))	{
+			
+			}
+		}
+	observed_nodes[vector_tree[check_these]-notu];
+	}
+# FINISH THIS LATER!!!
+#
+#hist(otu_order,breaks=sort(c(min(otu_order)-1,unique(otu_order))))
+phylo_axis <- c(otu_order,rep(0,nNodes));
+htu <- length(phylo_axis)-notu;
+htu_names <- rep("node_",htu);
+if (htu<10)	{
+	for (i in 1:htu)	htu_names[i] <- paste(htu_names[i],i,sep="");
+	} else	{
+	for (i in 1:htu)	{
+		if (i<10)	{
+			if (htu<100)	{
+				htu_names[i] <- paste(htu_names[i],"0",i,sep="");
+				} else {
+				htu_names[i] <- paste(htu_names[i],"00",i,sep="");
+				}
+			} else if (i<100)	{
+			if (htu<100)	{
+				htu_names[i] <- paste(htu_names[i],i,sep="");
+				} else {
+				htu_names[i] <- paste(htu_names[i],"0",i,sep="");
+				}
+			}
+		}
+	}
+names(phylo_axis) <- c(names(sampled_ancestors),htu_names);
+names(observed_nodes) <- htu_names;
+relv_ancestors <- c(sampled_ancestors,rep(0,nNodes));
+names(relv_ancestors) <- names(phylo_axis);
+#for (nd in nNodes:1)	{
+nd <- nNodes;
+while (nd>1)	{
+	htu <- nd+notu;
+	f1 <- mat_tree[nd,mat_tree[nd,]>0];
+	if (sum(relv_ancestors[f1])>0)	{
+#		print(nd);
+		obs_anc <- f1[relv_ancestors[f1]==1][1];
+		obs_desc <- f1[relv_ancestors[f1]!=1][1];
+		if (obs_anc %in% anas && (length(obs_desc)==1 & obs_desc>notu))	{
+			phylo_axis[htu] <- phylo_axis[obs_anc] <- phylo_axis[obs_desc];
+			} else	{
+		# 2021-09-15: anagenetic nodal ancestors winding up in wrong place some times!
+			phylo_axis[htu] <- phylo_axis[obs_anc];
+			}
+		} else if (observed_nodes[nd]!=0)	{
+		daughter_span <- c(min(phylo_axis[f1]),max(phylo_axis[f1]));
+		phylo_axis[observed_nodes[nd]] <- phylo_axis[htu] <- mean(daughter_span);
+#			}
+		} else	{
+		phylo_axis[htu] <- mean(phylo_axis[mat_tree[nd,mat_tree[nd,]>0]])
+		}
+	nd <- nd-1;
+#	print(phylo_axis[20]);
+	}
+
+for (nn in 1:(notu-1))	{
+	shared_pos_1 <- (1:notu)[otu_order==otu_order[nn]];
+	shared_pos_2 <- (1:notu)[phylo_axis[1:notu]==phylo_axis[nn]];
+	if (sum(shared_pos_2 %in% shared_pos_1) < length(shared_pos_2))	{
+		stowaway <- shared_pos_2[!shared_pos_2 %in% shared_pos_1];
+		paidup <- shared_pos_2[shared_pos_2 %in% shared_pos_1];
+		phylo_axis[phylo_axis>phylo_axis[stowaway]] <- phylo_axis[phylo_axis>phylo_axis[stowaway]]+1;
+		if (otu_order[stowaway]<otu_order[nn])	{
+			phylo_axis[paidup] <- phylo_axis[paidup]+1;
+			} else	{
+			phylo_axis[stowaway] <- phylo_axis[stowaway]+1;
+			}
+		}
+	}
+
+phylo_axis[1:notu] <- match(phylo_axis[1:notu],unique(sort(phylo_axis[1:notu])))-1;
+phylo_axis[(notu+1):length(phylo_axis)] <- 0;
+nd <- nNodes;
+while (nd>1)	{
+	htu <- nd+notu;
+	f1 <- mat_tree[nd,mat_tree[nd,]>0];
+	if (sum(relv_ancestors[f1])>0)	{
+#		print(nd);
+		obs_anc <- f1[relv_ancestors[f1]==1][1];
+		obs_desc <- f1[relv_ancestors[f1]!=1][1];
+		if (obs_anc %in% anas && (length(obs_desc)==1 & obs_desc>notu))	{
+			phylo_axis[htu] <- phylo_axis[obs_anc] <- phylo_axis[obs_desc];
+			} else	{
+		# 2021-09-15: anagenetic nodal ancestors winding up in wrong place some times!
+			phylo_axis[htu] <- phylo_axis[obs_anc];
+			}
+		} else if (observed_nodes[nd]!=0)	{
+		daughter_span <- c(min(phylo_axis[f1]),max(phylo_axis[f1]));
+		phylo_axis[observed_nodes[nd]] <- phylo_axis[htu] <- mean(daughter_span);
+#			}
+		} else	{
+		phylo_axis[htu] <- mean(phylo_axis[mat_tree[nd,mat_tree[nd,]>0]])
+		}
+	nd <- nd-1;
+#	print(phylo_axis[20]);
+	}
+
+return(phylo_axis);
+}
+
+### This needs work!!!!
+get_phylo_axis_from_vector_tree <- function(vector_tree,sampled_ancestors,anagenetic_ancestors=0,root_low=T)	{
+notu <- match(-1,vector_tree)-1;
+otu_order <- (1:notu)[order(vector_tree[1:notu])];
+#otu_order <- match(1:max(otu_order_string),otu_order_string);
+mat_tree <- transform_vector_tree_to_matrix_tree(vector_tree);
+venn_tree <- transform_vector_tree_to_venn_tree(vector_tree);
+nNodes <- nrow(mat_tree);
+rownames(mat_tree) <- rownames(venn_tree) <- (notu+1):(notu+nNodes);
+if (root_low)	{
+	max_tax <- (1:notu)[match(max(otu_order),otu_order)];
+	end_node <- which(mat_tree==max_tax,arr.ind=T)[,1];
+	if (end_node < (nNodes/2))	{
+		otu_order <- notu-otu_order
+		}
+	} else	{
+	otu_order <- otu_order-min(otu_order)
+	}
+
+observed_nodes <- rep(0,nNodes);	# tally sampled ancestors
+htu <- nd+notu;
+names(observed_nodes) <- htu+1:nNodes;
 if (sum(anagenetic_ancestors)>0)	{
 	anas <- (1:notu)[anagenetic_ancestors==1];
 	names(anas) <- names(anagenetic_ancestors)[anas];
@@ -2581,27 +2776,42 @@ if (sum(anagenetic_ancestors)>0)	{
 phylo_axis <- c(otu_order,rep(0,nNodes));
 relv_ancestors <- c(sampled_ancestors,rep(0,nNodes));
 for (nd in nNodes:1)	{
-	htu <- nd+notu;
 	f1 <- mat_tree[nd,mat_tree[nd,]>0];
 	if (sum(relv_ancestors[f1])>0)	{
 #		print(nd);
 		obs_anc <- f1[relv_ancestors[f1]==1][1];
 #		if (anagenetic_ancestors[obs_anc]==1)	{
 #			}
-		phylo_axis[htu] <- otu_order[obs_anc];
+		# 2021-09-15: anagenetic nodal ancestors winding up in wrong place some times!
+		phylo_axis[htu] <- phylo_axis[obs_anc];
+#		phylo_axis[htu] <- otu_order[obs_anc];
+#		if (anagenetic_ancestors[obs_anc]==1 && sum(f1[f1!=obs_anc]>notu)>0)	{
+#			daughter_clades <- f1[f1>notu];
+#			phylo_axis[daughter_clades]
+#			total_progeny <- c();
+#			for (dc in 1:length(daughter_clades))	{
+#				dn <- match(daughter_clades[dc],rownames(venn_tree));
+#				total_progeny <- c(total_progeny,venn_tree[dn,venn_tree[dn,]>0])
+#				}
+			# added 2021-09-15 to make sure that anagenetic nodal species is camped under the daughter clade
+#			phylo_axis[obs_anc] <- phylo_axis[htu] <- mean(phylo_axis[total_progeny]);
+#			} else	{
+			# pre 2021-09-15: this defaulted to this command alone.
+#			phylo_axis[htu] <- otu_order[obs_anc];
+#			}
 		} else if (observed_nodes[nd]!=0)	{
-		phylo_axis[htu] <- phylo_axis[observed_nodes[nd]];
+		daughter_span <- c(min(phylo_axis[f1]),max(phylo_axis[f1]));
+#		daughter_span <- c(min(phylo_axis[mat_tree[nd,mat_tree[nd,]>0]]),max(phylo_axis[mat_tree[nd,mat_tree[nd,]>0]]));
+#		if (phylo_axis[observed_nodes[nd]]>daughter_span[1] && phylo_axis[observed_nodes[nd]]<daughter_span[2])	{
+#			;
+		phylo_axis[observed_nodes[nd]] <- phylo_axis[htu] <- mean(daughter_span);
+#			}
 		} else	{
 		phylo_axis[htu] <- mean(phylo_axis[mat_tree[nd,mat_tree[nd,]>0]])
 		}
 	}
-return(phylo_axis);
-}
 
-### This needs work!!!!
-get_phylo_axis_from_vector_tree <- function(vector_tree,sampled_ancestors,root_low=T)	{
-
-mat_tree <- transform_vector_tree_to_matrix_tree(vector_tree=cladogram);
+mat_tree <- transform_vector_tree_to_matrix_tree(vector_tree);
 nNodes <- nrow(mat_tree);
 notu <- length(vector_tree)-nNodes;
 phylo_axis <- vector(length=length(vector_tree));
@@ -2610,7 +2820,6 @@ for (sp in 1:notu)	{
 	i_o <- which(mat_tree==sp,arr.ind=T);
 	init_order[sp] <- xx;
 	}
-
 	
 newick_string_new <- gsub(")","),",newick_string);
 newick_string_new <- gsub(",,","),",newick_string_new);

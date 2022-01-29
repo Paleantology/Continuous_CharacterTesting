@@ -32,6 +32,8 @@ chronostrat <- chronostrat[order(chronostrat$ma_lb,chronostrat$ma_lb,decreasing 
 chronostrat <- chronostrat[order(-chronostrat$ma_lb,chronostrat$ma_lb),];
 
 chronostrat <- subset(chronostrat,chronostrat$ma_lb!=chronostrat$ma_ub);
+if (!is.null(chronostrat$interval_sr))
+	chronostrat <- chronostrat[chronostrat$interval_sr=="",];
 bin_onsets <- sort(unique(chronostrat$ma_lb),decreasing=T);
 bin_ends <- sort(unique(chronostrat$ma_ub),decreasing=T);
 
@@ -613,4 +615,55 @@ if (length(dated_collections)>0)	{
 		}
 	}
 return(paleodb_collections);
+}
+
+accersi_dates_from_fossilworks <- function(fossilworks_data)	{
+#keepers <- c("collection_no","direct_ma","direct_ma_error","direct_ma_method","max_ma","max_ma_error","max_ma_method","min_ma","min_ma_error","min_ma_method","ma_max","ma_min");
+#numerics <- c("collection_no","direct_ma","direct_ma_error","max_ma","max_ma_error","min_ma","min_ma_error","ma_max","ma_min");
+keepers <- c("collection_no","direct_ma","direct_ma_error","direct_ma_method","max_ma","max_ma_error","max_ma_method","min_ma","min_ma_error","min_ma_method");
+numerics <- c("collection_no","direct_ma","direct_ma_error","max_ma","max_ma_error","min_ma","min_ma_error");
+fossilworks_dates <- fossilworks_data[,keepers];
+fossilworks_dates <- fossilworks_dates[!(fossilworks_dates$direct_ma_method=="" & fossilworks_dates$max_ma_method==""),];
+ndates <- nrow(fossilworks_dates);
+fossilworks_dates$ma_ub <- fossilworks_dates$ma_lb <- fossilworks_dates$min_ma_d <- fossilworks_dates$max_ma_d <- rep(0,nrow(fossilworks_dates));
+fossilworks_dates$max_ma[is.na(fossilworks_dates$max_ma)] <- fossilworks_dates$max_ma_error[is.na(fossilworks_dates$max_ma_error)] <- fossilworks_dates$min_ma[is.na(fossilworks_dates$min_ma)] <- fossilworks_dates$min_ma_error[is.na(fossilworks_dates$min_ma_error)] <- fossilworks_dates$direct_ma[is.na(fossilworks_dates$direct_ma)] <- fossilworks_dates$direct_ma_error[is.na(fossilworks_dates$direct_ma_error)]  <- -1;
+fossilworks_dates$max_ma_error[fossilworks_dates$max_ma>0 & fossilworks_dates$max_ma_error==-1] <- fossilworks_dates$max_ma[fossilworks_dates$max_ma>0 & fossilworks_dates$max_ma_error==-1]/100;
+fossilworks_dates$min_ma_error[fossilworks_dates$min_ma>0 & fossilworks_dates$min_ma_error==-1] <- fossilworks_dates$min_ma[fossilworks_dates$min_ma>0 & fossilworks_dates$min_ma_error==-1]/100;
+fossilworks_dates$direct_ma_error[fossilworks_dates$direct_ma>=0 & fossilworks_dates$direct_ma_error==-1] <- fossilworks_dates$direct_ma[fossilworks_dates$direct_ma>=0 & fossilworks_dates$direct_ma_error==-1]/100;
+fossilworks_dates$max_ma[fossilworks_dates$min_ma==-1 & fossilworks_dates$max_ma>=0] <- fossilworks_dates$max_ma[fossilworks_dates$min_ma==-1 & fossilworks_dates$max_ma>=0]+(fossilworks_dates$max_ma_error[fossilworks_dates$min_ma==-1 & fossilworks_dates$max_ma>=0]/2);
+fossilworks_dates$min_ma[fossilworks_dates$min_ma==-1 & fossilworks_dates$max_ma>=0] <- fossilworks_dates$max_ma[fossilworks_dates$min_ma==-1 & fossilworks_dates$max_ma>=0]-(fossilworks_dates$max_ma_error[fossilworks_dates$min_ma==-1 & fossilworks_dates$max_ma>=0]/2);
+fossilworks_dates$max_ma_d <- fossilworks_dates$direct_ma+fossilworks_dates$direct_ma_error;
+fossilworks_dates$min_ma_d <- fossilworks_dates$direct_ma-fossilworks_dates$direct_ma_error;
+#if (is.list(fossilworks_dates$max_ma_d)) fossilworks_dates$max_ma_d <- unlist(fossilworks_dates$max_ma_d);
+#if (is.list(fossilworks_dates$min_ma_d)) fossilworks_dates$min_ma_d <- unlist(fossilworks_dates$min_ma_d);
+too_prec <- (1:ndates)[fossilworks_dates$max_ma==fossilworks_dates$min_ma];
+fossilworks_dates$max_ma[too_prec] <- fossilworks_dates$max_ma[too_prec]+(fossilworks_dates$max_ma_error[too_prec]/2);
+fossilworks_dates$min_ma[too_prec] <- fossilworks_dates$min_ma[too_prec]-(fossilworks_dates$min_ma_error[too_prec]/2);
+#sum(is.na(fossilworks_dates$max_ma))
+
+
+inferred <- (1:ndates)[fossilworks_dates$max_ma_method!=""];
+direct <- (1:ndates)[fossilworks_dates$direct_ma_method!=""];
+both <- direct[direct %in% inferred];
+direct_only <- direct[!(direct %in% inferred)];
+inferred_only <- inferred[!inferred %in% direct];
+
+fossilworks_dates$ma_lb[inferred_only] <- fossilworks_dates$max_ma[inferred_only];
+fossilworks_dates$ma_ub[inferred_only] <- fossilworks_dates$min_ma[inferred_only];
+fossilworks_dates$ma_lb[direct_only] <- fossilworks_dates$max_ma_d[direct_only];
+fossilworks_dates$ma_ub[direct_only] <- fossilworks_dates$min_ma_d[direct_only];
+bb <- 0;
+while (bb<length(both))	{
+	bb <- bb+1;
+	bbb <- both[bb];
+	overlap <- accersi_temporal_overlap(fossilworks_dates$max_ma_d[bbb],fossilworks_dates$min_ma_d[bbb],fossilworks_dates$max_ma[bbb],fossilworks_dates$min_ma[bbb]);
+	if (overlap[1]!=0)	{
+		fossilworks_dates$ma_lb[both[bb]] <- as.numeric(overlap[1]);
+		fossilworks_dates$ma_ub[both[bb]] <- as.numeric(overlap[2]);
+		} else	{
+		fossilworks_dates$ma_lb[both[bb]] <- fossilworks_dates$max_ma_d[both[bb]];
+		fossilworks_dates$ma_ub[both[bb]] <- fossilworks_dates$min_ma_d[both[bb]];
+		}
+	}
+return(fossilworks_dates)
 }

@@ -63,8 +63,10 @@ freqrat <- function(taxon_ranges)	{
 if (!is.array(taxon_ranges))	{
 	counts <- hist(plot=FALSE,taxon_ranges,breaks=0:max(taxon_ranges))$counts
 	} else	{
-	tx_ranges <- 1+abs(taxon_ranges[,2]-taxon_ranges[,1])
-	counts <- hist(plot=FALSE,taxon_ranges,breaks=0:max(taxon_ranges))$counts;
+	tx_ranges <- 1+abs(taxon_ranges[,2]-taxon_ranges[,1]);
+	bin_ranges2 <- 1+abs(taxon_ranges[,2]-taxon_ranges[,1]);
+	counts <- hist(plot=FALSE,tx_ranges,breaks=0:max(tx_ranges))$counts;
+	counts <- hist(plot=FALSE,bin_ranges2,breaks=0:max(bin_ranges2))$counts;
 	}
 if (counts[3]==0 && max(taxon_ranges)>3)	counts[3] <- 1;
 return((counts[2]^2)/(counts[1]*counts[3]))
@@ -158,6 +160,58 @@ for (R in 2:rates)	{
 return(output)
 }
 
+ML_FreqRat_with_ranges <- function(lives)	{
+# span will be the oldest considered.  For survivorship, that will be the recent.  
+#	All survivors should be put there so the exponential is thrown off.
+#	For prenascents, that will be the first interval. Instead of assuming 
+#	everything originates there, start from there, stop one before.  This means no
+#	origination rates before the 2nd interval
+#if (final || final==1)	{
+#	span <- bins
+#	}	else spans <- bins-1
+#lives <- c(240,60,30,15,8,4,2,1)
+bins <- length(lives)
+freqratsson <- matrix(0,99,99)
+for (chrons in 1:99)	{
+	exp_ranges <- vector(length=bins)
+	turn <- chrons/100
+	# get expected lifetimes
+	for (b in 1:(bins-1))	{
+		exp_ranges[b] <- turn*((1-turn)^(b-1))
+		}
+	exp_ranges[bins] <- 1-sum(exp_ranges[1:(bins-1)])
+	if (exp_ranges[bins]==0)	exp_ranges[bins] <- turn*((1-turn)^(bins-1))
+	
+	for (f in 1:99)	{
+		fr <- f/100
+		# get expected ranges given chrons & fr
+		exp_finds <- vector(length=bins)
+		for (a in 1:bins)	{
+			# multiply proportion of taxa living that long times proportion expected to be sampled for certain ranges
+			for (r in 1:a)	{
+				if (r==1)	{
+					# probablity of living 1 stage & being found in it
+					if (a==1)	{
+						exp_finds[r] <- exp_ranges[a]*fr
+						}	else {
+						# probablity of living 2+ stages & being found in only in the first
+						exp_finds[r] <- exp_finds[r]+exp_ranges[a]*fr*((1-fr)^(a-r))
+						}
+					}	else {
+					# probablity of being found in this stage and one subsequent one & none afterwards
+					exp_finds[r] <- exp_finds[r]+exp_ranges[a]*(fr^2)*((1-fr)^(a-r))
+					}
+				}	
+			}
+		exfn <- exp_finds/sum(exp_finds);
+#		exfn <- exp_finds[1:(meth-1)]/sum(exp_finds)
+		freqratsson[chrons,f] <- sum(lives*log(exfn))
+		}
+	}
+freqratsson <- freqratsson-max(freqratsson)
+return(freqratsson)
+}
+
 # lives <- soft_coleoid_range_counts_def;
 ML_FreqRat_with_ranges_and_gaps <- function(lives,gaps,poss_gaps)	{
 # span will be the oldest considered.  For survivorship, that will be the recent.  
@@ -212,9 +266,9 @@ ML_FreqRat <- function(synoptic, interval_scale)	{
 #if (final || final==1)	{
 #	span <- bins
 #	}	else spans <- bins-1
-bins <- length(interval_scale)
-notu <- dim(synoptic)[1]
-ages <- vector(length=notu)
+bins <- length(interval_scale);
+notu <- nrow(synoptic);
+ages <- vector(length=notu);
 interval_scale_up <- c(interval_scale[2:length(interval_scale)],0)
 for (n in 1:notu)	{
 	ages[n] <- sum((interval_scale>synoptic[n,2])*(interval_scale_up<=synoptic[n,1]))
@@ -2454,6 +2508,53 @@ return(two_timers)
 }
 
 ### gives taxa shared between bin X and X+2
+# taxon_ranges <- myr_ranges; pres_in_each_interval <- prob_pres_each_interval_rd;
+accersi_three_timer_stats <- function(taxon_ranges,pres_in_each_interval,finest_timescale)	{
+taxon_ranges <- taxon_ranges[taxon_ranges$fa!=0,];
+taxa <- rownames(taxon_ranges);
+pres_in_each_interval <- pres_in_each_interval[rownames(pres_in_each_interval) %in% taxa,];
+ntaxa <- nrow(taxon_ranges);
+#if (is.null(taxon_ranges$bin_lb))
+#	for (nn in 1:ntaxa)	{
+#		taxon_ranges$bin_lb[nn] <- sum(finest_timescale$ma_lb>=taxon_ranges$fa[nn]);
+#		taxon_ranges$bin_ub[nn] <- sum(finest_timescale$ma_ub>=taxon_ranges$la[nn]);
+#		}
+ttl_bins <- nrow(finest_timescale);
+alroy_stats <- data.frame(interval=as.character(finest_timescale$interval),
+						  three_timer=as.numeric(rep(0,ttl_bins)),
+						  two_timer_a=as.numeric(rep(0,ttl_bins)),
+						  two_timer_z=as.numeric(rep(0,ttl_bins)),
+						  three_timer_g=as.numeric(rep(0,ttl_bins)),
+						  one_timer=as.numeric(rep(0,ttl_bins)));
+age <- taxon_ranges$fa;
+taxon_ranges$fb <- sapply(age,rebin_collection_with_time_scale,"onset",finest_timescale);
+age <- taxon_ranges$la;
+taxon_ranges$lb <- sapply(age,rebin_collection_with_time_scale,"end",finest_timescale);
+for (nt in 1:ntaxa)	{
+	bina <- match(taxon_ranges$fb[nt],finest_timescale$interval);
+	binz <- match(taxon_ranges$lb[nt],finest_timescale$interval);
+	bn <- bina;
+	while (bn<binz)	{
+		if (pres_in_each_interval[nt,bn]==1 & pres_in_each_interval[nt,bn+1]==1)	{
+			alroy_stats$two_timer_a[bn] <- alroy_stats$two_timer_a[bn]+1;
+			alroy_stats$two_timer_z[bn+1] <- alroy_stats$two_timer_z[bn+1]+1;
+			}
+		if (bn>1 & bn<ttl_bins)	{
+			if (pres_in_each_interval[nt,bn-1]==1 & pres_in_each_interval[nt,bn+1]==1)	{
+				if (pres_in_each_interval[nt,bn]==0)	{
+					alroy_stats$three_timer_g[bn] <- alroy_stats$three_timer_g[bn]+1;
+					} else	{
+					alroy_stats$three_timer[bn] <- alroy_stats$three_timer[bn]+1;
+					}
+				}
+			}
+		bn <- bn+1;
+		}
+	if (bina==binz)	alroy_stats$one_timer[bn] <- alroy_stats$one_timer[bn]+1;
+	}
+return(alroy_stats);
+}
+
 # use for extinction for X and origination for X+2
 count_three_timers_after <- function(finds_per_bin,output_all_bins=F)	{
 bins <- ncol(finds_per_bin);
@@ -3271,19 +3372,41 @@ boundary_crosser_turnover <- function(Xbt,XFtbL)	{
 return(-log(Xbt/(Xbt+XFtbL)))
 }
 
-assign_interval_rates_to_finer_time_scale_old <- function(bin_rates,bin_onsets,prec)	{
-slices <- 1+(max(bin_onsets)-min(bin_onsets))/prec
-ts <- bin_onsets
-for (b in 2:length(bin_onsets))	ts[b] <- ts[b]+ts[b-1]
-fine_rates <- vector(length=slices)
-b <- 1
-chrons <- bin_onsets[b]
-for (i in 1:slices)	{
-	if (chrons>=ts[b+1])	b <- b+1
-	fine_rates[i] <- bin_rates[b]
-	chrons <- chrons+prec
+log_likelihood_diversification_rate_given_sampling <- function(div_rate,obs_shared,min_shared,max_shared,pfind,continuous=T)	{
+# written 2021-08-25
+# div_rate: originaation or extinction rate
+# obs_shared: observed richness shared between the two intervals
+# min_shared: the minimum richness that might be shared (= obs_shared only if there are no unsampled range-throughs)
+# max_shared: the maximum richness that might be shared (= richness of early interval for extinction or late interval for origination)
+# pfind: taxon sampling rate for next interval (for extintion) or prior interval (for origination)
+# continuous: if T, then we use a Poisson process; if F, then we use a binomical process
+if (continuous)	{
+	prop_turnover <- Poisson_rate_to_probability(div_rate);	# expected prop dead / born
+	} else	{
+	prop_turnover <- div_rate;	# expected prop dead / born
 	}
-return(fine_rates)
+#S_orig <- max_shared;
+#S_shared_obs <- Smo;
+S_shared_hyp <- min_shared:max_shared;
+lnp_turnover_cond <- sapply(S_shared_hyp,log_prob_turnover_given_sampling,S_shared_obs=obs_shared,S_orig=max_shared,prop_turnover,pfind)
+lnp_turnover_cond[is.infinite(abs(lnp_turnover_cond))] <- -MAXNO;
+return(max(-MAXNO,log(sum(exp(lnp_turnover_cond)))));
+}
+
+log_prob_turnover_given_sampling <- function(S_shared_hyp,S_shared_obs,S_orig,prop_turnover,pfind)	{
+# written 2021-08-25
+# S_shared_hyp: hypothesized shared richness between two intervals
+# S_shared_obs: observed shared richness between two intervals;
+# S_orig: richness of the "first" interval (earlier for extinction, later for origination)
+# prop_turnover: expected turnover as a proportion (e.g., 0.75 in we expect 3/4 of the taxa to die or originate)
+# pfind: prob. of finding a taxon in the next interval (for extinction) or prior interval (for origination)
+unshared <- S_orig-S_shared_hyp;
+	# get P[Sh | orig/extn rate, Sng]
+p_turnover <- dbinom(unshared,S_orig,prop_turnover);
+	# get P[Smo | sampling rate, Sh]
+p_sample <- dbinom(S_shared_obs,S_shared_hyp,pfind);
+lnp_turnover_cond <- log(p_turnover)+log(p_sample);
+return(lnp_turnover_cond);
 }
 
 accersi_first_differences <- function(time_series)	{
@@ -3333,12 +3456,18 @@ s1 <- sum(Xi==1);	# No. of singletons
 return(1-(s1/O));
 }
 
-coverage_good_1965_mod<-function(Xi)	{
+coverage_good_1965_mod <- function(Xi)	{
 # Xi: number of specimens/occurrences for each taxon i
 singletons <- length(subset(Xi,Xi==1));
 records <- sum(Xi);
 maxf <- max(Xi);
-return(1-(singletons+maxf)/(records-maxf))
+if (records==0)	{
+	return(0);
+	} else if ((1-(singletons+maxf)/(records-maxf))>0)	{
+	return(1-(singletons+maxf)/(records-maxf));
+	} else	{
+	return(coverage_good_1965(Xi));
+	}
 }
 
 coverage_alroy_2010 <- function(Xi,single_pub_occ)	{
@@ -3841,7 +3970,7 @@ return(sum(lgl_rate))
 }
 
 reparifarge_rate_info <- function(rate_info, nbins)	{
-### routine to take rate_info from an optimization routine and present it normallyy
+### routine to take rate_info from an optimization routine and present it normally
 sep_rates <- ceiling(length(rate_info)/2);
 a <- 1+sep_rates;
 divides <- sort(rate_info[a:length(rate_info)]);
@@ -4293,7 +4422,8 @@ if ((two_timer+gap_filler)<S1 && rate>0)	{
 return(c(best_diversification,log(L_best_diversification)))
 }
 
-likelihood_diversification_rate_given_sampling <- function(rate,pmiss,S1,two_timer,gap_filler,continuous)	{
+#pmiss=1-psi_z;S1=total;two_timer=zoomers;gap_filler=gps_z;continuous=T
+likelihood_diversification_rate_given_sampling <- function(rate,pmiss,two_timer,three_timer,gap_filler,continuous=T)	{
 # rate: per-lineage rate
 #	poisson if continuous==TRUE; binomial if continuous==FALSE
 # pmiss: probability that an unobserved taxon is present-but-unsampled rather than non-existent
@@ -4306,8 +4436,8 @@ if (continuous==TRUE)	{
 	}	else {
 	freq <- rate
 	}	# get expected frequency of shared taxa
-hS <- seq(two_timer+gap_filler,S1,by=1)	# range of possible shared taxa; max=S1, min=observed+directly inferred
-pt <- prob_observing_n_shared_given_diversification_sampling_and_hypothesized_shared(n=two_timer,S1=S1,S2=hS,freq_turn=freq,pmiss=pmiss)
+hS <- seq(three_timer+gap_filler,two_timer,by=1)	# range of possible shared taxa; max=S1, min=observed+directly inferred
+pt <- prob_observing_n_shared_given_diversification_sampling_and_hypothesized_shared(n=three_timer,S1=two_timer,S2=hS,freq_turn=freq,pmiss=pmiss)
 
 return(max(10^-320,sum(pt)))
 }
@@ -4319,9 +4449,9 @@ prob_observing_n_shared_given_diversification_sampling_and_hypothesized_shared <
 # S2 = hypothesized in other bin
 # n = observed shared
 # freq_turn=expected n=(S1-S2)S1
-# pfind = prob finding taxon
-#return(dbinom(S1-S2,S1,freq_turn)*dbinom(n,S2,pfind))
-return(dbinom(S1-S2,S1,freq_turn)*pmiss^(S2-n))
+# pfind = seq finding taxon
+return(dbinom(S1-S2,S1,freq_turn)*dbinom(n,S2,1-pmiss));
+#return(dbinom(S1-S2,S1,freq_turn)*pmiss^(S2-n));
 }
 
 #### Subsampling Routines ####
@@ -4338,12 +4468,52 @@ return(taxon_finds)
 }
 
 shareholder_quorum_subsampling<-function(taxon_finds,coverage)	{
-n<-round(coverage*length(taxon_finds))
+n <- round(coverage*length(taxon_finds));
 return(length(unique(permute(taxon_finds)[1:n])))
+}
+
+shareholder_quorum_subsampling_return_taxa <- function(taxon_finds,coverage)	{
+n <- round(coverage*length(taxon_finds));
+return(unique(permute(taxon_finds)[1:n]));
 }
 
 shareholder_quorum_subsampling_higher_taxa_given_lower_taxa <- function(taxon_finds,higher_taxa,coverage)	{
 n <- round(coverage*length(taxon_finds));
 subsamp <- permute(taxon_finds)[1:n];
 return(length(unique(higher_taxa[subsamp])));
+}
+
+#subtaxa <- study_taxon_members;
+shareholder_quorum_subsampling_subgroup_given_larger_group <- function(taxon_finds,subtaxa,coverage,runs=500)	{
+sqs_results <- array(0,dim=c(runs,1+length(subtaxa)))
+for (rr in 1:runs)	{
+	subsampled_taxa <- shareholder_quorum_subsampling_return_taxa(taxon_finds,coverage)
+	sqs_results[rr,1] <- length(unique(subsampled_taxa));
+	for (rrs in 1:length(subtaxa))	{
+		sqs_results[rr,rrs+1] <- sum(subtaxa[[rrs]] %in% subsampled_taxa);
+		}
+	}
+return(sqs_results);
+}
+
+# SQS for larger control group with 1…n subgroups (e.g., proetoids, proetides & trilobites within arthropods)
+shareholder_quorum_subsampling_subgroup_given_larger_group_sep_genus_and_species <- function(taxon_finds,subtaxa,coverage,runs=500)	{
+sqs_results_sp <- array(0,dim=c(runs,1+length(subtaxa)));
+if (!is.null(names(subtaxa)))	colnames(sqs_results_sp) <- c("All",names(subtaxa))
+sqs_results_gn <- sqs_results_sp;
+
+for (rr in 1:runs)	{
+	subsampled_species <- shareholder_quorum_subsampling_return_taxa(taxon_finds,coverage);
+	sqs_results_sp[rr,1] <- length(unique(subsampled_species));
+	taxon_name <- subsampled_species;
+	genus_name <- sapply(taxon_name,divido_genus_names_from_species_names);
+	sqs_results_gn[rr,1] <- length(unique(genus_name));
+	for (rrs in 1:length(subtaxa))	{
+		sqs_results_sp[rr,rrs+1] <- sum(subsampled_species %in% subtaxa[[rrs]]);
+		sqs_results_gn[rr,rrs+1] <- length(unique(genus_name[names(genus_name) %in% subtaxa[[rrs]]]))
+		}
+	}
+sqs_results <- list(sqs_results_sp,sqs_results_gn);
+names(sqs_results) <- c("species","genera");
+return(sqs_results);
 }
