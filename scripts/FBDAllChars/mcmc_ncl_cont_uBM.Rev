@@ -1,0 +1,66 @@
+# RevBayes v1.1.0
+#
+# master script to run the MCMC and summarize trees
+
+####################
+# read in the data #
+contData <- readContinuousCharacterData("data/Continuous.nex")
+discData <- readDiscreteCharacterData("data/Kammerer2019.nex")
+taxa <- readTaxonData("data/Therapsid_Ages.tsv")
+
+# Synonymize taxon spaces
+discData.addMissingTaxa( taxa )
+contData.addMissingTaxa( taxa )
+
+
+# global variables
+numTips = contData.ntaxa()
+n_tips = contData.ntaxa()
+n_taxa <- taxa.size()
+
+numNodes = numTips * 2 - 1
+names = contData.names()
+n_branches <- 2 * n_tips - 2
+# vector for the moves and monitors
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+###############
+# load models #
+source("scripts/FBDAllChars/model_foss.Rev")
+source("scripts/FBDAllChars/model_StCT.Rev")
+source("scripts/FBDAllChars/model_uniBM.Rev")
+source("scripts/FBDAllChars/model_Morph.Rev")
+
+mymodel = model(timetree)
+
+############
+# run MCMC #
+
+# some minitors
+monitors.append( mnScreen(printgen=100) )
+monitors.append( mnModel(filename="output_FBD_allchars1/foss_uBM.log", printgen=10) )
+monitors.append( mnFile(filename="output_FBD_allchars1/foss_uBM.trees", printgen=10,timetree) )
+
+# initialize the MCMC object
+mymcmc = mcmc(mymodel, moves, monitors, nruns=2, combine="mixed")
+
+# run the MCMC
+mymcmc.run(generations=1000000)
+
+# check the performance of the moves
+mymcmc.operatorSummary()
+
+#########################################
+# read in the tree trace and summarize  #
+trace = readTreeTrace("output_FBD_allchars1/cont_uBM.trees", treetype="clock", nruns=2)
+
+# maximum a posteriori (MAP) tree
+mapTree(trace, file="output_FBD_allchars1/cont_uBM.map.tre")
+
+# majority-rule consensus tree
+consensusTree(trace, file="output_FBD_allchars1/cont_uBM.maj.tre")
+
+#################
+# quit RevBayes #
+q()
