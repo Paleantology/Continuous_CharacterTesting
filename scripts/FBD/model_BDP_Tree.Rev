@@ -54,21 +54,27 @@ moves.append(mvSlide(origin_time, delta=0.01, weight=5));
 moves.append(mvSlide(origin_time, delta=0.10, weight=3));
 moves.append(mvSlide(origin_time, delta=1.00, weight=1));
 
-fbd_dist = dnFBDRP(origin=origin_time, lambda=speciation_rate, mu=extinction_rate, psi=psi, rho=rho, taxa=taxa);
+#fbd_dist = dnFBDRP(origin=origin_time, lambda=speciation_rate, mu=extinction_rate, psi=psi, rho=rho, taxa=taxa);
 
 
 # Fix the age of the root to 1 #
 extant_mrca <- 325
 
 # Define the tree-prior distribution as the birth-death process #
-tree_dist = dnFBDP(lambda=speciation_rate, psi = psi, mu=extinction_rate, rho=rho, rootAge=origin_time, condition="sampling", taxa=taxa)
+tree_dist = dnBDSTP(lambda=speciation_rate, psi = psi, mu=extinction_rate, rho=rho, rootAge=origin_time, condition="sampling", taxa=taxa)
 
 # create the vector of clade constraints
+
 outgroup = clade("Biarmosuchus_tener");
-lystro = clade("Lystrosaurus_hedini", "Lystrosaurus_maccaigi", "Lystrosaurus_curvatus", "Lystrosaurus_declivis", "Lystrosaurus_murrayi")
-gelao = clade("Galeops_whaitsi", "Galepus_jouberti")
-constraints = v(outgroup, lystro, gelao);
+
+#lystro = clade("Lystrosaurus_hedini", "Lystrosaurus_maccaigi", "Lystrosaurus_curvatus", "Lystrosaurus_declivis", "Lystrosaurus_murrayi")
+#gelao = clade("Galeops_whaitsi", "Galepus_jouberti")
+#constraints = v(outgroup, lystro, gelao);
+
+mcc <- readTrees("data/Discrete.mcc.tre")[1]
+constraints = v(outgroup);
 timetree ~ dnConstrainedTopology(tree_dist, constraints=constraints)
+timetree.setValue(mcc)
 timetree
 # Specify moves on the tree and node times #
 moves.append( mvNarrow(timetree, weight=n_taxa) )

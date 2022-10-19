@@ -2,6 +2,8 @@
 #
 # master script to run the MCMC and summarize trees
 
+setwd("/home/brenen/bmwynd/WrightLab/therapsids/Continuous_CharacterTesting/")
+
 ####################
 # read in the data #
 #contData <- readContinuousCharacterData("data/Continuous.nex")
