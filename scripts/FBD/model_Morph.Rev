@@ -2,11 +2,11 @@
 # Binary discDatalogical substitution model #
 ###########################################
 # We assume a strict  clock rate, drawn from an exponential prior #
-clock_discData ~ dnExponential(1.0)
+#clock_discData ~ dnExponential(1.0)
 
-moves.append( mvScale(clock_discData, lambda=0.01, weight=4.0) )
-moves.append( mvScale(clock_discData, lambda=0.1,  weight=4.0) )
-moves.append( mvScale(clock_discData, lambda=1,    weight=4.0) )
+#moves.append( mvScale(clock_discData, lambda=0.01, weight=4.0) )
+#moves.append( mvScale(clock_discData, lambda=0.1,  weight=4.0) )
+#moves.append( mvScale(clock_discData, lambda=1,    weight=4.0) )
 
 
 #Set up Gamma-distributed rate variation.
@@ -31,7 +31,7 @@ for (i in 2:n_max_states) {
                                     Q=Q_discData[idx],
                                     nSites=nc,
                                     siteRates=rates_discData,
-                                    branchRates=clock_discData,
+                                    branchRates=branch_rates,
                                     type="Standard")           # create model of evolution for the character block
         Q_discData[idx]
         m_morph[idx].clamp(discData_bystate[i])                  # attach the data

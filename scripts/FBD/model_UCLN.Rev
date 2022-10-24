@@ -1,4 +1,5 @@
 ### the rate along each branch is assigned a lognormal prior
+n_branches <- 2 * n_taxa -2
 ### the expectation of the lognormal is the ucln_mean, and will be given an exponential hyperprior
 ucln_mean ~ dnExponential(2.0)
 ### we will also estimate the standard deviation of the lognormal (ucln_sigma) with an exponential hyperprior
@@ -14,9 +15,9 @@ moves.append(mvScale(ucln_sigma, lambda=0.5, tune=true, weight=4.0))
 ### each element in the vector represents a branch rate
 ### the indices of the vector correspond to branch indices in the tree
 ### using a for-lop initialize the branch rates and assign a move to each one
-for(i in 1:n_branches){
-    branch_rates[i] ~ dnLnorm(ucln_mu, ucln_sigma)
-    moves.append(mvScale(branch_rates[i],lambda=1.0,tune=true,weight=2.0))
+for (x in 1:n_branches){
+    branch_rates[x] ~ dnLnorm(ucln_mu, ucln_sigma)
+    moves.append(mvScale(branch_rates[x],lambda=1.0,tune=true,weight=2.0))
 }
 ### add 2 more moves on the branch rate vector
 moves.append(mvVectorScale(branch_rates,lambda=1.0,tune=true,weight=2.0))
