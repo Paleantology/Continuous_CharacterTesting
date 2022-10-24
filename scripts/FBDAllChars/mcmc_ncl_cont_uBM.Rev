@@ -2,25 +2,24 @@
 #
 # master script to run the MCMC and summarize trees
 
-setwd("/home/brenen/bmwynd/WrightLab/therapsids/Continuous_CharacterTesting/")
-
 ####################
 # read in the data #
-#contData <- readContinuousCharacterData("data/Continuous.nex")
+contData <- readContinuousCharacterData("data/Continuous.nex")
 discData <- readDiscreteCharacterData("data/Kammerer2019.nex")
 taxa <- readTaxonData("data/Therapsid_Ages.tsv")
 
+# Synonymize taxon spaces
 discData.addMissingTaxa( taxa )
-#contData.addMissingTaxa( taxa )
+contData.addMissingTaxa( taxa )
 
 
 # global variables
-numTips = discData.ntaxa()
-n_tips = discData.ntaxa()
+numTips = contData.ntaxa()
+n_tips = contData.ntaxa()
 n_taxa <- taxa.size()
 
 numNodes = numTips * 2 - 1
-names = discData.names()
+names = contData.names()
 n_branches <- 2 * n_tips - 2
 # vector for the moves and monitors
 moves    = VectorMoves()
@@ -28,12 +27,10 @@ monitors = VectorMonitors()
 
 ###############
 # load models #
-#source("scripts/model_foss.Rev")
-source("scripts/FBD/model_BDP_Tree.Rev")
-source("scripts/FBD/model_UCLN.Rev")
-source("scripts/FBD/model_Morph.Rev")
-
-#source("scripts/FBD/model_relaxed_BM.Rev") # continuous traits
+source("scripts/FBDAllChars/model_foss.Rev")
+source("scripts/FBDAllChars/model_StCT.Rev")
+source("scripts/FBDAllChars/model_uniBM.Rev")
+source("scripts/FBDAllChars/model_Morph.Rev")
 
 mymodel = model(timetree)
 
@@ -42,27 +39,27 @@ mymodel = model(timetree)
 
 # some minitors
 monitors.append( mnScreen(printgen=100) )
-monitors.append( mnModel(filename="output_clock/foss_discrete.log", printgen=10) )
-monitors.append( mnFile(filename="output_clock/foss_discrete.trees", printgen=10,timetree) )
+monitors.append( mnModel(filename="output_FBD_allchars1/foss_uBM.log", printgen=10) )
+monitors.append( mnFile(filename="output_FBD_allchars1/foss_uBM.trees", printgen=10,timetree) )
 
 # initialize the MCMC object
 mymcmc = mcmc(mymodel, moves, monitors, nruns=2, combine="mixed")
 
 # run the MCMC
-mymcmc.run(generations=100000)
+mymcmc.run(generations=1000000)
 
 # check the performance of the moves
 mymcmc.operatorSummary()
 
 #########################################
 # read in the tree trace and summarize  #
-trace = readTreeTrace("output_clock/foss_discrete.trees", treetype="clock", nruns=2)
+trace = readTreeTrace("output_FBD_allchars1/cont_uBM.trees", treetype="clock", nruns=2)
 
 # maximum a posteriori (MAP) tree
-mapTree(trace, file="output_clock/foss_discrete.map.tre")
+mapTree(trace, file="output_FBD_allchars1/cont_uBM.map.tre")
 
 # majority-rule consensus tree
-consensusTree(trace, file="output_clock/foss_discrete.maj.tre")
+consensusTree(trace, file="output_FBD_allchars1/cont_uBM.maj.tre")
 
 #################
 # quit RevBayes #
