@@ -54,7 +54,7 @@ moves.append(mvSlide(origin_time, delta=0.01, weight=5));
 moves.append(mvSlide(origin_time, delta=0.10, weight=3));
 moves.append(mvSlide(origin_time, delta=1.00, weight=1));
 
-fbd_dist = dnFBDRP(origin=origin_time, lambda=speciation_rate, mu=extinction_rate, psi=psi, rho=rho, taxa=taxa);
+#fbd_dist = dnFBDRP(origin=origin_time, lambda=speciation_rate, mu=extinction_rate, psi=psi, rho=rho, taxa=taxa);
 
 
 # Fix the age of the root to 1 #
@@ -75,3 +75,28 @@ moves.append( mvNarrow(timetree, weight=n_taxa) )
 moves.append( mvFNPR(timetree, weight=n_taxa/4.0) )
 moves.append( mvNodeTimeSlideUniform(timetree, weight=n_taxa) )
 moves.append( mvSubtreeScale(timetree, weight=n_taxa/5.0) )
+
+fossils = timetree.getFossils()
+for(i in 1:fossils.size())
+{
+    t[i] := tmrca(timetree, clade(fossils[i]))
+
+    a_i = fossils[i].getMinAge()
+    b_i = fossils[i].getMaxAge()
+
+    F[i] ~ dnUniform(t[i] - b_i, t[i] - a_i)
+    F[i].clamp( 0 )
+}
+# Add a move to sample the fossil times #
+moves.append(mvFossilTimeSlideUniform(timetree, origin_time, weight=5.0))
+moves.append(mvCollapseExpandFossilBranch(timetree, origin_time, weight=6.0))
+
+# Add tree moves
+moves.append(mvFNPR(timetree, weight=15))
+moves.append(mvNodeTimeSlideUniform(timetree, weight=40))
+moves.append(mvRootTimeSlideUniform(timetree, origin_time, weight=5))
+
+### Create deterministic nodes to monitor various tree statistics ###
+# Monitor the number of sampled ancestors in the FBD-tree #
+num_samp_anc := timetree.numSampledAncestors();
+
