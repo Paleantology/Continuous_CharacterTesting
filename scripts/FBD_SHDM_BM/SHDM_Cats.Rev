@@ -1,0 +1,107 @@
+################################################################################
+#
+# RevBayes Example: Bayesian model averaging using reversible-jump MCMC over
+#            Mk and SHDM models using morphological character data.
+#
+################################################################################
+####################
+# Read in the data #
+####################
+this_gene = "Kammerer2019"
+data = readDiscreteCharacterData("data/" + this_gene + ".nex")
+contData <- readContinuousCharacterData("data/Continuous.nex")
+taxa <- readTaxonData("data/Therapsid_Ages_CFK_2023.tsv")
+
+data.addMissingTaxa( taxa )
+contData.addMissingTaxa( taxa )
+#get some useful information about the data
+num_taxa = taxa.size()
+num_branches = 2 * num_taxa - 2
+
+# Create some vector for the moves and monitors of this analysis
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+# name the analysis
+name = "cchars" + "_" + "RJ"
+source("scripts/FBD_SHDM_BM/model_BDP_Tree.Rev")
+source("scripts/FBD_SHDM_BM/model_UCLN.Rev")
+#################################################
+# Define the model of among-site rate variation #
+#################################################
+
+alpha ~ dnGamma(1E8, 0.5)
+moves.append(mvScale(alpha, weight=10.0))
+moves.append(mvScale(alpha, weight=10.0))
+
+
+site_rates := fnDiscretizeGamma(alpha, alpha, 4)
+###########################################
+###########################################
+#SHDM Model
+source("scripts/FBD_SHDM_BM/SHDM_8.Rev")
+source("scripts/FBD_SHDM_BM/SHDM_7.Rev")
+source("scripts/FBD_SHDM_BM/SHDM_6.Rev")
+source("scripts/FBD_SHDM_BM/SHDM_5.Rev")
+source("scripts/FBD_SHDM_BM/SHDM_4.Rev")
+source("scripts/FBD_SHDM_BM/SHDM_3.Rev")
+source("scripts/FBD_SHDM_BM/SHDM_2.Rev")
+
+###########################################
+
+
+#################################
+# Define the phyloCTMC model    #
+# (AKA the likelihood function) #
+#################################
+
+
+model_indicator ~ dnCategorical(simplex(1,1,1,1,1,1,1))
+moves.append( mvRandomGeometricWalk(model_indicator, weight=10.0, tune=FALSE) )
+morpho_bystate[1] <- data
+n_max_states <- 7
+for (i in 2:n_max_states) {
+    morpho_bystate[i] <- data
+    morpho_bystate[i].setNumStatesPartition(i)
+    Q_vec := v(Q_SHDM_8, Q_SHDM_7, Q_SHDM_6, Q_SHDM_5, Q_SHDM_4, Q_SHDM_3, Q_SHDM_2)
+    Q := Q_vec[model_indicator]
+    matrix_probs_vec := v(matrix_probs_8, matrix_probs_7, matrix_probs_6, matrix_probs_5, matrix_probs_4, matrix_probs_3, matrix_probs_2)
+    matrix_probs := matrix_probs_vec[model_indicator]
+    seq ~ dnPhyloCTMC(tree=timetree, Q = Q, type="Standard", siteRates=site_rates, branchRates = branch_rates, siteMatrices = matrix_probs)
+    seq.clamp(morpho_bystate[i])
+}
+
+source("scripts/FBD_SHDM_BM/model_uniBM.Rev")
+
+
+#########################
+# Make the model object #
+#########################
+my_model = model(timetree)
+
+#####################
+# Make the monitors #
+#####################
+
+monitors.append(mnModel(filename="output_FBD_SHDM_BM" + name + "/posterior_samples.log",printgen=10, separator = TAB))
+monitors.append(mnFile(filename="output_FBD_SHDM_BM/" + name + "/tree_samples.trees",printgen=10, separator = TAB, timetree))
+monitors.append(mnScreen(printgen=100, model_indicator))
+
+################
+# Run the MCMC #
+################
+
+mymcmc = mcmc(my_model, moves, monitors, nruns=2, combine="mixed")
+mymcmc.run(generations=2000000,tuningInterval=200)
+
+#########################################
+# Read in the posterior sample of trees #
+# and compute the MAP tree              #
+#########################################
+
+# start by reading in the tree trace
+treetrace = readTreeTrace("output_FBD_SHDM_BM/" + name + "/tree_samples.trees")
+map_tree = mapTree(treetrace,"output_FBD_SHDM_BM/" + name + "/MAP_tree.tree")
+
+# exit the program
+q()

@@ -1,0 +1,27 @@
+sigma2 ~ dnLoguniform(1e-5, 1e-1)
+moves.append( mvScale(sigma2, weight=2.0) )
+
+alpha ~ dnExponential( abs(origin_time / 2.0 / ln(2.0)) )
+moves.append( mvScale(alpha, weight=2.0) )
+
+theta ~ dnUniform(0, 1)
+moves.append( mvSlide(theta, weight=2.0) )
+
+# also add an adaptive mutlivariate normal move
+avmvn_move = mvAVMVN(weight=5, waitBeforeLearning=500, waitBeforeUsing=1000)
+avmvn_move.addVariable(sigma2)
+avmvn_move.addVariable(alpha)
+avmvn_move.addVariable(theta)
+moves.append( avmvn_move )
+
+# some useful variable transformations to monitor
+t_half := ln(2) / alpha
+p_th := 1 - (1 - exp(-2.0*alpha*origin_time)) / (2.0*alpha*origin_time)
+
+
+##########################
+# Specify the BM process #
+##########################
+
+X ~ dnPhyloOrnsteinUhlenbeckREML(timetree, alpha, theta, sigma2^0.5, rootStates=theta)
+X.clamp(contData)

@@ -1,0 +1,67 @@
+clear();
+#setwd("/Users/peterjwagner/Documents/RevBayes_Projects");	#CHANGE THIS TO THE FOLDER IN WHICH YOU HAVE REVBAYES SCRIPTS & DATA!!!
+### This director needs three subdirectories (folders):
+#     RevBayes_Projects/scripts (additional RevBayes routines that will be used)
+#     RevBayes_Projects/data (holds data matrices & taxonomic information)
+#     RevBayes_Projects/output (where trees & logs will be sent)
+#source("scripts/Imperio_Default_Settings.Rev");
+
+###############################################################################
+# This is (these are) the nexus file(s) that you are using for this analysis  #
+#     Make sure that filenames & directories are correct!!!
+###############################################################################
+d_chars <- readDiscreteCharacterData("data/Kammerer2019.nex");
+taxa <- readTaxonData("data/Therapsid_Fossil_Info.tsv");
+moves    = VectorMoves();
+monitors = VectorMonitors();
+
+#filenames <- v("data/Crassatellidae_Matrix_2_States.nex", "data/Crassatellidae_Matrix_3_States.nex", "data/Crassatellidae_Matrix_4_States.nex");
+
+#partition_chars <- v(28,10,4);
+#partition_states <- v(2,3,4);
+#partition_ordering <- v("unordered","unordered","unordered");
+coding_bias <- v("variable");	## prepare for ascertainment bias in binary characters; 'all': invariant & autapomorphies present; 'variable': all vary & autapomorphies present; 'informative': all vary & no autapomorphies.
+max_age <- 69.0;						# used if big_bang==TRUE;
+clock_model <- "strict";		# enter "strict" for strict clock, "uncorrelated" for relaxed clock with lognormal; "autocorrelated" for autocorrelated with lognormal shifts
+d_chars.addMissingTaxa( taxa );
+n_tips <- taxa.size();
+num_branches <- 2 * n_tips - 3;
+source("scripts/foss.Rev");
+n_branch <- fbd_tree.ntips();
+
+clock_morpho ~ dnExponential(1.0);
+
+moves.append( mvScale(clock_morpho, lambda=0.01, weight=4.0) );
+moves.append( mvScale(clock_morpho, lambda=0.1,  weight=4.0) );
+moves.append( mvScale(clock_morpho, lambda=1,    weight=4.0) );
+
+alpha_morpho ~ dnUniform( 0, 1E6 );
+rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 );
+moves.append(mvScale(alpha_morpho, lambda=1, weight=2.0));
+
+n_max_states <- 6;
+idx = 1;
+morpho_f_bystate <- d_chars.setNumStatesVector();
+for (i in 1:n_max_states) {
+	nc = morpho_f_bystate[i].nchar();
+# for non-empty character blocks
+	if (nc > 0) {
+		q[idx] <- fnJC(i);	# make i-by-i rate matrix
+		# create model of evolution for the character block
+		m_morph[idx] ~ dnPhyloCTMC( tree=fbd_tree,
+																Q=q[idx],
+																nSites=nc,
+																siteRates=rates_morpho,
+																branchRates=clock_morpho,
+																type="Standard");
+		m_morph[idx].clamp(morpho_f_bystate[i]);	# attach the data
+		idx = idx + 1;	# increment counter
+		}
+	}
+
+mymodel = model(fbd_tree)
+monitors.append( mnModel(filename="output/simple_BM.log", printgen=10) )
+monitors.append( mnScreen(printgen=1000)) #, sigma2) )
+monitors.append(mnFile(filename="output/parted.trees", printgen=10, fbd_tree))
+mymcmc = mcmc(mymodel, monitors, moves)
+mymcmc.run(generations=500000)
