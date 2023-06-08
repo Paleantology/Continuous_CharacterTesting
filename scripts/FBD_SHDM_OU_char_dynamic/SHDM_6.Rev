@@ -1,0 +1,32 @@
+n_cats = 6
+n_max_states <- 7
+idx = 1
+
+beta_scale ~ dnLognormal( 0.0, sd=2*0.587405 )
+
+for (i in 1:n_max_states) {
+morpho_bystate_6[i] <- data
+    morpho_bystate_6[i].setNumStatesPartition(i)
+     nc = morpho_bystate_6[i].nchar()
+    # for non-empty character blocks
+      print("nchars:", nc)
+      print("nSTATES:", i)
+      cats := fnDiscretizeBeta(beta_scale, beta_scale, i)
+      for (x in 1:cats.size())
+      {
+        Q_SHDM_6[x] := fnF81(simplex(cats))
+        }
+        mat_prior_6 <- rep(1,i)
+        matrix_probs_6 ~ dnDirichlet(mat_prior_6)
+        moves.append( mvBetaSimplex(matrix_probs_6, weight=3.0) )
+        moves.append( mvDirichletSimplex(matrix_probs_6, weight=1.5) )
+        #m_morph[idx] ~ dnPhyloCTMC( tree=fbd_tree,
+                                    #Q=q,
+                                    #nSites=nc,
+                                    #siteRates=rates_morpho,
+                                    #branchRates = branch_rates,
+                                    #siteMatrices=matrix_probs,
+                                    #type="Standard")
+	      #m_morph[idx].clamp(morpho_bystate[i])
+        idx = idx + 1
+        }

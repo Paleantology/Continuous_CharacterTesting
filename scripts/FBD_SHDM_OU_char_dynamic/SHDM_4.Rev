@@ -1,0 +1,42 @@
+n_cats = 4
+n_max_states <- 7
+idx = 1
+# Draw the concentration parameter of the Dirichlet distribution of equilibrium state frequencies from an exponential hyperprior, and place a move on it.
+#dir_alpha_4 ~ dnExponential( 1.0 )
+#moves.append(mvScale(dir_alpha_4, lambda=1, weight=1.0))
+#moves.append(mvScale(dir_alpha_4, lambda=0.1, weight=3.0))
+#moves.append(mvScale(dir_alpha_4, lambda=0.01, weight=5.0))
+
+#alpha_morpho ~ dnUniform( 0, 1E6 )
+#rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
+#Moves on the parameters to the Gamma distribution.
+#moves.append(mvScale(alpha_morpho, lambda=1, weight=2.0))
+
+beta_scale ~ dnLognormal( 0.0, sd=2*0.587405 )
+
+for (i in 1:n_max_states) {
+morpho_bystate_4[i] <- data
+    morpho_bystate_4[i].setNumStatesPartition(i)
+     nc = morpho_bystate_4[i].nchar()
+    # for non-empty character blocks
+      print("nchars:", nc)
+      print("nSTATES:", i)
+      cats := fnDiscretizeBeta(beta_scale, beta_scale, i)
+      for (x in 1:cats.size())
+      {
+        Q_SHDM_4[x] := fnF81(simplex(cats))
+        }
+        mat_prior_4 <- rep(1,i)
+        matrix_probs_4 ~ dnDirichlet(mat_prior_4)
+        moves.append( mvBetaSimplex(matrix_probs_4, weight=3.0) )
+        moves.append( mvDirichletSimplex(matrix_probs_4, weight=1.5) )
+        #m_morph[idx] ~ dnPhyloCTMC( tree=fbd_tree,
+                                    #Q=q,
+                                    #nSites=nc,
+                                    #siteRates=rates_morpho,
+                                    #branchRates = branch_rates,
+                                    #siteMatrices=matrix_probs,
+                                    #type="Standard")
+	      #m_morph[idx].clamp(morpho_bystate[i])
+        idx = idx + 1
+        }

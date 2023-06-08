@@ -1,0 +1,148 @@
+################################################################################
+#
+# RevBayes Example: Bayesian model averaging using reversible-jump MCMC over
+#            Mk and SHDM models using morphological character data.
+#
+################################################################################
+####################
+# Read in the data #
+####################
+this_gene = "Kammerer2019"
+data = readDiscreteCharacterData("../../data/" + this_gene + ".nex")
+
+#get some useful information about the data
+taxa = data.taxa()
+num_taxa = data.ntaxa()
+num_branches = 2 * num_taxa - 3
+
+# Create some vector for the moves and monitors of this analysis
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+# name the analysis
+name = this_gene + "_" + "RJ"
+
+# Set up branch length moves
+br_len_lambda ~ dnExp(0.2)
+moves.append(mvScale(br_len_lambda, weight=5))
+
+nbr <- 2*taxa.size() - 3
+for (i in 1:nbr){
+    br_lens[i] ~ dnExponential(br_len_lambda)
+    moves.append(mvScale(br_lens[i]))
+}
+
+#`Create a starting tree and place moves.append on it.
+tau ~ dnUniformTopology(taxa)
+phylogeny := treeAssembly(tau, br_lens)
+moves.append(mvNNI(tau, weight=2*nbr))
+moves.append(mvSPR(tau, weight=nbr))
+tree_length := phylogeny.treeLength()
+
+#model_indicator ~ dnCategorical(simplex(1,1))
+#moves.append(mvRandomGeometricWalk(model_indicator, weight=10.0, tune=FALSE))
+
+#################################################
+# Define the model of among-site rate variation #
+#################################################
+
+alpha ~ dnGamma(1E8, 0.5)
+moves.append(mvScale(alpha, weight=10.0))
+moves.append(mvScale(alpha, weight=10.0))
+
+
+site_rates := fnDiscretizeGamma(alpha, alpha, 4)
+###########################################
+###########################################
+#SHDM Model
+source("scripts/SHDM_8.Rev")
+source("scripts/SHDM_7.Rev")
+source("scripts/SHDM_6.Rev")
+source("scripts/SHDM_5.Rev")
+source("scripts/SHDM_4.Rev")
+source("scripts/SHDM_3.Rev")
+source("scripts/SHDM_2.Rev")
+###########################################
+#Mk Model
+###########################################
+n_max_states <- 7
+idx = 1
+morpho_bystate[1] <- data
+for (i in 2:n_max_states) {
+    ebf = 1/i
+    cats := rep(ebf, i)
+    morpho_bystate[i-1] <- data
+    morpho_bystate[i-1].setNumStatesPartition(i)
+    nc = data.nchar()                             # get number of characters per character size with i-sized states
+    if (nc > 0) {                                            # for non-empty character blocks
+      for (x in 1:cats.size())
+      {
+        Q_Mk[x] := fnF81(simplex(cats))
+        }                                     # make i-by-i rate matrix
+                mat_prior_Mk <- rep(1,i)
+                matrix_probs_Mk ~ dnDirichlet(mat_prior_Mk)
+                matrix_probs_Mk
+                moves.append( mvBetaSimplex(matrix_probs_Mk, weight=3.0) )
+                moves.append( mvDirichletSimplex(matrix_probs_Mk, weight=1.5) )
+        i = i + 1
+        idx = idx + 1                                          # increment counter
+    }
+}
+###########################################
+###########################################
+
+
+#################################
+# Define the phyloCTMC model    #
+# (AKA the likelihood function) #
+#################################
+idx = 1
+model_indicator ~ dnCategorical(simplex(1,1,1,1,1,1,1,1))
+moves.append( mvRandomGeometricWalk(model_indicator, weight=10.0, tune=FALSE) )
+
+n_max_states <- 7
+for (i in 2:n_max_states) {
+    morpho_bystate[i] <- data
+    morpho_bystate[i].setNumStatesPartition(i)
+
+    Q_vec := v(Q_SHDM_8, Q_SHDM_7, Q_SHDM_6, Q_SHDM_5, Q_SHDM_4, Q_SHDM_3, Q_SHDM_2, Q_Mk)
+    Q := Q_vec[model_indicator]
+
+    matrix_probs_vec := v(matrix_probs_8, matrix_probs_7, matrix_probs_6, matrix_probs_5, matrix_probs_4, matrix_probs_3, matrix_probs_2, matrix_probs_Mk)
+    matrix_probs := matrix_probs_vec[model_indicator]
+    seq ~ dnPhyloCTMC(tree=phylogeny, Q = Q, type="Standard", siteRates=site_rates, siteMatrices = matrix_probs)
+    seq.clamp(morpho_bystate[i])
+    print(i)
+}
+
+#########################
+# Make the model object #
+#########################
+my_model = model(phylogeny)
+
+#####################
+# Make the monitors #
+#####################
+
+monitors.append(mnModel(filename="output_cats/" + name + "/posterior_samples.log",printgen=10, separator = TAB))
+monitors.append(mnFile(filename="output_cats/" + name + "/tree_samples.trees",printgen=10, separator = TAB, phylogeny))
+monitors.append(mnScreen(printgen=100, model_indicator))
+
+################
+# Run the MCMC #
+################
+
+mymcmc = mcmc(my_model, moves, monitors, nruns=2, combine="mixed")
+mymcmc.run(generations=200000,tuningInterval=200)
+
+#########################################
+# Read in the posterior sample of trees #
+# and compute the MAP tree              #
+#########################################
+
+# start by reading in the tree trace
+treetrace = readTreeTrace("output_cats/" + name + "/tree_samples.trees")
+map_tree = mapTree(treetrace,"output_cats/" + name + "/MAP_tree.tree")
+
+# exit the program
+q()
