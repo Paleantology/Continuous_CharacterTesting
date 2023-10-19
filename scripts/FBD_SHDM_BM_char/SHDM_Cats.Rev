@@ -26,6 +26,7 @@ monitors = VectorMonitors()
 name = "cchars" + "_" + "RJ"
 source("scripts/FBD_SHDM_BM_char/model_BDP_Tree.Rev")
 source("scripts/FBD_SHDM_BM_char/model_UCLN.Rev")
+
 #################################################
 # Define the model of among-site rate variation #
 #################################################
@@ -83,7 +84,7 @@ my_model = model(timetree)
 # Make the monitors #
 #####################
 
-monitors.append(mnModel(filename="output_FBD_SHDM_BM_char" + name + "/posterior_samples.log",printgen=10, separator = TAB))
+monitors.append(mnModel(filename="output_FBD_SHDM_BM_char/" + name + "/posterior_samples.log",printgen=10, separator = TAB))
 monitors.append(mnFile(filename="output_FBD_SHDM_BM_char/" + name + "/tree_samples.trees",printgen=10, separator = TAB, timetree))
 monitors.append(mnScreen(printgen=100, model_indicator))
 
@@ -100,8 +101,8 @@ mymcmc.run(generations=2000000,tuningInterval=200)
 #########################################
 
 # start by reading in the tree trace
-treetrace = readTreeTrace("output_FBD_SHDM_BM_char/" + name + "/tree_samples.trees")
-map_tree = mapTree(treetrace,"output_FBD_SHDM_BM_char/" + name + "/MAP_tree.tree")
+#treetrace = readTreeTrace("output_FBD_SHDM_BM_char/" + name + "/tree_samples.trees")
+#map_tree = mapTree(treetrace,"output_FBD_SHDM_BM_char/" + name + "/MAP_tree.tree")
 
 # exit the program
-q()
+#q()

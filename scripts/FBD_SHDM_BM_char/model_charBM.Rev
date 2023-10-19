@@ -29,12 +29,19 @@ set_twenty <- v(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1
 set_twentyone <- v(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,  14, 15, 16, 17, 18, 19, 20, 21, 23)
 set_twentytwo <- v(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,  13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
 set_of_sets <- v(set_one, set_two, set_three, set_four, set_five, set_six, set_seven, set_eight, set_nine, set_ten, set_eleven, set_twleve, set_thirteen, set_fourteen, set_fifteen, set_sixteen, set_seventeen, set_eighteen, set_nineteen, set_twenty, set_twentyone, set_twentytwo)
-
-while (i < 23){
+#timetree
+#timetree.rescale(.1)
+#for (fossil in timetree.getFossils()){
+#    node_num <- timetree.tipIndex(fossil)
+#    timetree.setNodeAge(node_num, 1)
+# }
+timetree
+while (i < 22){
+	sigma2[i] ~ dnLoguniform(1e-5, 1e-1)
 	by_state[i] <- contData
 	by_state[i].excludeCharacter(set_of_sets[i])
-	phyContinous[i] ~ dnPhyloBrownianREML(tree=timetree, branchRates=branch_rates, nSites=1)
+    moves.append( mvScale(sigma2[i], weight=1.0) )
+	phyContinous[i] ~ dnPhyloBrownianREML(tree=timetree, branchRates=sqrt(sigma2[i]), nSites=1)
 	phyContinous[i].clamp(by_state[i])
-	phyContinous[i]
 	i <- i +1 
 	}
