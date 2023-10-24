@@ -85,20 +85,20 @@ moves.append( mvFNPR(timetree, weight=num_taxa/4.0) )
 moves.append( mvNodeTimeSlideUniform(timetree, weight=num_taxa) )
 moves.append( mvSubtreeScale(timetree, weight=num_taxa/5.0) )
 
-fossils = timetree.getFossils()
-fossils
-for(i in 1:fossils.size())
-{
-    t[i] := tmrca(timetree, clade(fossils[i]))
+#fossils = timetree.getFossils()
+#fossils
+#for(i in 1:fossils.size())
+#{
+#    t[i] := tmrca(timetree, clade(fossils[i]))
 
-    a_i = fossils[i].getMinAge()
-    b_i = fossils[i].getMaxAge()
+#    a_i = fossils[i].getMinAge()
+#    b_i = fossils[i].getMaxAge()
 
-    F[i] ~ dnUniform(t[i] - b_i, t[i] - a_i)
-    F[i].clamp( 0 )
-}
+#    F[i] ~ dnUniform(t[i] - b_i, t[i] - a_i)
+#    F[i].clamp( 0 )
+#}
 # Add a move to sample the fossil times #
-moves.append(mvFossilTimeSlideUniform(timetree, origin_time, weight=5.0))
+#moves.append(mvFossilTimeSlideUniform(timetree, origin_time, weight=5.0))
 moves.append(mvCollapseExpandFossilBranch(timetree, origin_time, weight=6.0))
 
 # Add tree moves
