@@ -8,7 +8,7 @@ Lycosuchus_vanderrieti	261	258.5
 Glanosuchus_macrops	262	260
 Biseridens_qilianicus	268	265
 Anomocephalus_africanus	264.38	262
-Tiarajudens_eccentricus	272.3   264.38	
+Tiarajudens_eccentricus	272.3	264.38
 Otsheria_netzvetajevi	268	265
 Ulemica	265	262
 Suminia_getmanovi	260	258.5
@@ -104,7 +104,11 @@ Eubrachiosaurus_browni	232	215
 Jachaleria_colorata	227	225
 Jachaleria_candelariensis	227	225
 Ischigualastia_jenseni	231.4	228.91
+<<<<<<< HEAD
 Rastodon_procurvidens	272.3   264.38	
+=======
+Rastodon_procurvidens	272.3	264.38
+>>>>>>> d8a762144f41b8a2f3de83f1c72ffeeca3dd6053
 Sauroscaptor_tharavati	256.8	255.24
 Bulbasaurus_phylloxyron	258.5	256.8
 Compsodon_helmoedi	256.8	255
