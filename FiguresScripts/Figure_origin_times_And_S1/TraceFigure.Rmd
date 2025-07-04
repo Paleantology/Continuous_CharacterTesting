@@ -1,0 +1,128 @@
+---
+title: "TracePlots.RmD"
+author: "April Wright"
+date: "2024-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Required packages for this figure: 
+```{r}
+library(RevGadgets)
+library(coda)
+library(ggplot2)
+library(ggtree)
+library(grid)
+library(gridExtra)
+library(rwty)
+library(tidyverse)
+require(ape)
+library(ggpattern)
+require(phytools)
+
+```
+
+Now we read in our files: 
+
+```{r}
+
+file_comb_relaxed <- "manuscript_data/log_posterior/sampledancestors/combined_MultiRate.log"
+
+trace_qual_comb_relaxed <- readTrace(path = file_comb_relaxed, burnin=0.25)
+
+summarizeTrace(trace_qual_comb_relaxed, vars = c("origin_time", "Posterior"))
+
+
+file_comb_strict <- "manuscript_data/log_posterior/sampledancestors/comb_OneRate.log"
+
+trace_qual_comb_strict <- readTrace(path = file_comb_strict, burnin=0.25)
+
+summarizeTrace(trace_qual_comb_strict, vars = c("origin_time", "Posterior"))
+
+
+file_disc = "manuscript_data/log_posterior/sampledancestors/discrete.log"
+
+trace_qual_disc <- readTrace(path = file_disc, burnin=0.25)
+
+summarizeTrace(trace_qual_disc, vars = c("origin_time", "Posterior"))
+
+
+#time for the strict clock model rippers
+file_cont_strict <- "manuscript_data/log_posterior/sampledancestors/continuous_OneRate.log"
+
+trace_qual_cont_strict <- readTrace(path = file_cont_strict, burnin=0.25)
+
+summarizeTrace(trace_qual_cont_strict, vars = c("origin_time", "Posterior"))
+
+file_cont_relaxed = "manuscript_data/log_posterior/sampledancestors/continuous_MultiRate.log"
+
+trace_qual_cont_relaxed <- readTrace(path = file_cont_relaxed, burnin=0.25)
+
+summarizeTrace(trace_qual_cont_relaxed, vars = c("origin_time", "Posterior"))
+
+```
+Read the traces as RevGadgets trace objects for plotting
+```{r}
+#combined
+combined_onerate <- trace_qual_comb_strict_MCMC <- as.mcmc(trace_qual_comb_strict)[[1]] %>% 
+  select(origin_time) %>% 
+  mutate(Treatment = "Combined - One Rate")
+
+combined_multirate <- trace_qual_comb_relaxed_MCMC <- as.mcmc(trace_qual_comb_relaxed)[[1]] %>% 
+  select(origin_time) %>% 
+  mutate(Treatment = "Combined - Multi-Rate")
+
+#discrete
+discrete <- trace_qual_disc_MCMC <- as.mcmc(trace_qual_disc)[[1]] %>% 
+    select(origin_time) %>% 
+  mutate(Treatment = "Discrete")
+
+#cont-only
+continuous <- trace_qual_cont_relaxed_MCMC <- as.mcmc(trace_qual_cont_relaxed)[[1]] %>% 
+    select(origin_time) %>% 
+  mutate(Treatment = "Continuous - One Rate")
+continuous_multi_rate <- trace_qual_cont_strict_MCMC <- as.mcmc(trace_qual_cont_strict)[[1]] %>% 
+    select(origin_time) %>% 
+  mutate(Treatment = "Continuous - Multi-Rate")
+
+mega_df <- rbind(continuous, continuous_multi_rate, discrete, combined_multirate, combined_onerate)
+
+```
+
+And combine into dataframes for easy plotting
+
+
+```{r}
+
+group.colors <- c( "Discrete" = "#004D40", "Combined - One Rate" = "#751F96", "Combined - Multi-Rate" = "#751F96","Continuous - Multi-Rate" =  "#FFC107", "Continuous - One Rate" = "#FFC107")
+group.patterns <- c( Discrete = "stripe", `Combined - One Rate` = "stripe", `Combined - Multirate` = "none",`Continuous - Multirate` =  "none", `Continuous - One Rate` = "stripe")
+
+
+ggplot(data = mega_df, aes(x = origin_time, fill = Treatment, pattern = Treatment)) + geom_density() + scale_pattern_manual(values = group.patterns) + scale_fill_manual( values=group.colors ) 
+
+```
+
+Use The Below to replicate the origin time figure.
+
+```{r}
+
+par(mfrow=c(1,1), mar=c(4,4,1,1))
+plot(NULL, xlim=c(265, 285), ylim=c(0,0.5), xlab="Origin Time (Ma)", yaxs="i", xaxs="i", main="", ylab="Density")
+lines(density(mega_df$origin_time[mega_df$Treatment=="Combined - One Rate"]), col = adjustcolor("#751F96", alpha.f=0.4), lw=2)
+polygon(density(mega_df$origin_time[mega_df$Treatment=="Combined - One Rate"]), col = adjustcolor("#751F96", alpha.f=0.4), density = 11, angle=-45, border=NA, fillOddEven = T, lw=2.5)
+lines(density(mega_df$origin_time[mega_df$Treatment=="Combined - Multirate"]), col = adjustcolor("#751F96", alpha.f=0.4))
+polygon(density(mega_df$origin_time[mega_df$Treatment=="Combined - Multirate"]), col = adjustcolor("#751F96", alpha.f=0.4), border=NA)
+lines(density(mega_df$origin_time[mega_df$Treatment=="Continuous - One Rate"]), col = adjustcolor("#FFC107", alpha.f=0.4), lw=2)
+polygon(density(mega_df$origin_time[mega_df$Treatment=="Continuous - One Rate"]), col = adjustcolor("#FFC107", alpha.f=0.4), density = 16, angle=45, border=NA, fillOddEven = T, lw=2.5)
+lines(density(mega_df$origin_time[mega_df$Treatment=="Continuous - Multirate"]), col = adjustcolor("#FFC107", alpha.f=0.4))
+polygon(density(mega_df$origin_time[mega_df$Treatment=="Continuous - Multirate"]), col = adjustcolor("#FFC107", alpha.f=0.4), border=NA)
+lines(density(mega_df$origin_time[mega_df$Treatment=="Discrete"]), col = adjustcolor("#004D40", alpha.f=0.4), lw=2)
+polygon(density(mega_df$origin_time[mega_df$Treatment=="Discrete"]), col = adjustcolor("#004D40", alpha.f=0.4), density = 11, angle=-45, border=NA, fillOddEven = T, lw=2.5)
+legend("topright", inset=c(0.01, 0.01), c("Discrete", "Continuous - One Rate", "Continuous Multirate", "Combined - One Rate", "Combined - Multirate"),
+       fill=c("#004D40", "#FFC107", "#FFC107", "#751F96", "#751F96"), density = c(21, 21, NA, 21, NA))
+
+```
