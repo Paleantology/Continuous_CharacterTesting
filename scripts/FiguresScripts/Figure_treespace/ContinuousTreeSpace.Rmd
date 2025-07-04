@@ -1,0 +1,122 @@
+---
+title: "ContinuousTreeSpaces"
+author: "April Wright"
+date: "2024-01-20"
+output: html_document
+---
+
+```{r}
+
+library(rwty)
+library(RevGadgets)
+library(tidyverse)
+```
+
+RWTY requires that MCMC chains are sampled at equal intervals. If the mcmc chains were not thinned equivalently, we can do resample them like so:
+
+```{r}
+
+continuous_relaxed <- readr::read_delim("new/Continuous(relaxed)_tree_samples.trees", delim = "\t" )
+continuous_strict <- readr::read_delim("new/Continuous(strict)_tree_samples.trees", delim = "\t" )
+discrete_table <- readr::read_delim("new/Discrete_tree_samples.trees", delim = "\t")
+combined_relaxed <- readr::read_delim("new/Combined_relaxed.trees", delim = "\t")
+combined_strict <- readr::read_delim("new/combined(strict_nosa)_tree_samples.trees", delim = "\t")
+
+
+#continuous_table <- sample_frac(continuous_table, size = .1, replace = FALSE)
+#discrete_table <- sample_frac(discrete_table, size = .1, replace = FALSE)
+#combined <- sample_frac(continuous_table, size = .1, replace = FALSE)
+
+#write_delim(continuous_table, "dated/continuous_subsample.trees", delim = "\t")
+#write_delim(discrete_table, "dated/discrete_subsample.trees", delim = "\t")
+#write_delim(continuous_table, "dated/combined_subsample.trees", delim = "\t")
+continuous_relaxed <- continuous_relaxed %>%
+ slice(which(row_number() %% 1 == 1)) %>% 
+#  select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("new/subsampled/continuous_relaxed.trees", delim = "\t")
+
+continuous_strict <- continuous_strict %>%
+ slice(which(row_number() %% 10 == 1)) %>% 
+#  select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("new/subsampled/continuous_strict.trees", delim = "\t")
+
+discrete_table <- discrete_table %>%
+ slice(which(row_number() %% 100 == 1)) %>% 
+#  select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("new/subsampled/discrete_subsample.trees", delim = "\t")
+
+combined_relaxed <- combined_relaxed %>% 
+   slice(which(row_number() %% 100 == 1)) %>% 
+ # select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("new/subsampled/combined_relaxed.trees", delim = "\t")
+
+combined_strict <- combined_strict %>% 
+   slice(which(row_number() %% 100 == 1)) %>% 
+ # select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("new/subsampled/combined_strict.trees", delim = "\t")
+
+
+```
+
+
+```{r}
+
+continuous_parameters <- readr::read_delim("dated/Continuous Only.log", delim = "\t" )
+discrete_parameters <- readr::read_delim("dated/Discrete Only.log", delim = "\t")
+combined_parameters <- readr::read_delim("dated/Combined.log", delim = "\t")
+
+#continuous_table <- sample_frac(continuous_table, size = .1, replace = FALSE)
+#discrete_table <- sample_frac(discrete_table, size = .1, replace = FALSE)
+#combined <- sample_frac(continuous_table, size = .1, replace = FALSE)
+
+#write_delim(continuous_table, "dated/continuous_subsample.trees", delim = "\t")
+#write_delim(discrete_table, "dated/discrete_subsample.trees", delim = "\t")
+#write_delim(continuous_table, "dated/combined_subsample.trees", delim = "\t")
+continuous_parameters <- continuous_parameters %>%
+ slice(which(row_number() %% 10 == 1)) %>% 
+#  select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("dated/subsampled/continuous_subsample.log", delim = "\t")
+
+discrete_parameters %>%
+ slice(which(row_number() %% 10 == 1)) %>% 
+#  select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("dated/discrete_subsample.log", delim = "\t")
+
+combined_parameters %>% 
+   slice(which(row_number() %% 10 == 1)) %>% 
+ # select(-Iteration, -Posterior, -Likelihood, -Prior) %>% 
+  write_delim("dated/subsampled/combined_subsample.log", delim = "\t")
+
+
+```
+
+
+```{r}
+
+my.trees <- load.multi(path = "~/Desktop/manuscript_data/output/", format = "revbayes")
+#path Can be dated/ for the dated trees or undated/ for the undateds
+```
+
+```{r}
+
+for (x in length(my.trees$strict.trees$trees)){
+    my.trees$strict.trees$trees[[x]] <- SA_nodesToTips(my.trees$strict.trees$trees[[x]])
+}
+
+```
+
+
+
+```{r}
+
+my.treespace <- makeplot.treespace(my.trees, n.points = 100,
+                    fill.color = NA)
+
+```
+
+Plot it a little better:
+
+```{r}
+
+ qplot(x, y, data = my.treespace$treespace.points.plot$data, color = chain, shape = chain) + scale_color_manual(values = c("#004D40","#751F96", "#751F96","#FFC107","#FFC107")) + scale_shape_manual(values = c(16, 16, 17, 17, 16 )) +theme_bw()
+```

@@ -1,0 +1,10 @@
+
+trees = readTreeTrace("Continuous(relaxed)_tree_samples.trees", burnin=.25, thinning=10)
+tl = [0]
+for (i in 1:trees.size()){
+ t = trees.getTree(i)
+ l = t.treeLength()
+ tl.erase(0)
+ tl = append(tl, l)
+ }
+ write(tl, filename = "comb_relaxed.csv", separator = ",")
